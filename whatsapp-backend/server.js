@@ -3,9 +3,9 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
-const { auth, db } = require("./firebaseConfig");
-const { generateRandomUsername } = require("./usernameGenerator");
-const { generateGeminiResponse, isGeminiAvailable } = require("./geminiService");
+const { generateGeminiResponse } = require('./geminiService');
+const { generateRandomUsername } = require('./usernameGenerator');
+const { admin, db, auth } = require('./firebase-admin'); // Use new module
 
 const app = express();
 app.use(cors());
