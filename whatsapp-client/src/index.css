@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+
+  /* Neobrutalism shadow effects */
+  .shadow-neo {
+    box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 1);
+  }
+
+  .shadow-neo-sm {
+    box-shadow: 3px 3px 0px 0px rgba(0, 0, 0, 1);
+  }
+
+  /* Typing indicator animation */
+  .typing-dots {
+    display: inline-block;
+    animation: typingDots 1.4s infinite;
+  }
+
+  @keyframes typingDots {
+
+    0%,
+    20% {
+      content: '.';
+    }
+
+    40% {
+      content: '..';
+    }
+
+    60%,
+    100% {
+      content: '...';
+    }
+  }
+}
+
+body {
+  background-color: #f3f4f6;
+  /* Optional: Add a subtle grid pattern */
+  background-image: radial-gradient(#000 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Dark theme background */
+body.dark {
+  background-color: #1f2937;
+  background-image: radial-gradient(#4b5563 1px, transparent 1px);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-left: 2px solid black;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border: 2px solid black;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
