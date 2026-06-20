@@ -6,6 +6,7 @@ import { Send, LogOut, MessageSquare, Zap, Reply, X, AtSign } from 'lucide-react
 import EmojiPicker from 'emoji-picker-react';
 import Blog from './Blog';
 import About from './About';
+import GoogleAd from './GoogleAd';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
 
@@ -74,8 +75,28 @@ function App() {
   // Emoji picker
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+  // Premium states
+  const [isPremium, setIsPremium] = useState(false);
+  const [hideAdsIfPremium, setHideAdsIfPremium] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Handle actions triggered from the Google Ad banner
+  const handleAdAction = (actionId) => {
+    if (actionId === 'premium') {
+      setShowPremiumModal(true);
+    } else if (actionId === 'gemini') {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        setMessage("@gemini ");
+      }
+    } else if (actionId === 'privacy') {
+      leaveRoom();
+      setShowPasswordInput(true);
+    }
+  };
 
   // Filter messages based on search
   const filteredMessages = searchQuery
@@ -485,10 +506,21 @@ function App() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Premium Settings Button */}
+          <button
+            onClick={() => setShowPremiumModal(true)}
+            className={`font-bold border-2 border-black px-2 py-1 text-xs md:text-sm shadow-neo-sm active:shadow-none active:translate-x-[3px] active:translate-y-[3px] transition-colors ${
+              isPremium ? 'bg-yellow-300 hover:bg-yellow-200 text-black' : 'bg-white hover:bg-gray-200 text-black dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700'
+            }`}
+            title="ANONYCHAT Premium"
+          >
+            👑
+          </button>
+
           {/* Theme Toggle */}
           <button
             onClick={() => setIsDarkTheme(!isDarkTheme)}
-            className="font-bold border-2 border-black px-2 py-1 hover:bg-gray-200 text-xs md:text-sm shadow-neo-sm active:shadow-none active:translate-x-[3px] active:translate-y-[3px]"
+            className="font-bold border-2 border-black px-2 py-1 hover:bg-gray-200 text-xs md:text-sm shadow-neo-sm active:shadow-none active:translate-x-[3px] active:translate-y-[3px] dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
             title={isDarkTheme ? "Light Mode" : "Dark Mode"}
           >
             {isDarkTheme ? "☀️" : "🌙"}
@@ -497,7 +529,7 @@ function App() {
           {/* Copy Room Link */}
           <button
             onClick={copyRoomLink}
-            className="font-bold border-2 border-black px-2 md:px-3 py-1 hover:bg-gray-200 text-xs md:text-sm shadow-neo-sm active:shadow-none active:translate-x-[3px] active:translate-y-[3px]"
+            className="font-bold border-2 border-black px-2 md:px-3 py-1 hover:bg-gray-200 text-xs md:text-sm shadow-neo-sm active:shadow-none active:translate-x-[3px] active:translate-y-[3px] dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
             title="Copy Room Link"
           >
             📋
@@ -505,12 +537,20 @@ function App() {
 
           <button
             onClick={leaveRoom}
-            className="font-bold border-2 border-black px-3 py-1 md:px-4 md:py-1 hover:bg-gray-200 text-xs md:text-sm shadow-neo-sm active:shadow-none active:translate-x-[3px] active:translate-y-[3px]"
+            className="font-bold border-2 border-black px-3 py-1 md:px-4 md:py-1 hover:bg-gray-200 text-xs md:text-sm shadow-neo-sm active:shadow-none active:translate-x-[3px] active:translate-y-[3px] dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
           >
             LEAVE
           </button>
         </div>
       </div>
+
+      {/* Google Ads */}
+      {(!isPremium || !hideAdsIfPremium) && (
+        <GoogleAd
+          isDarkTheme={isDarkTheme}
+          onAction={handleAdAction}
+        />
+      )}
 
       {/* Search Bar */}
       <div className={`${isDarkTheme ? 'bg-gray-800' : 'bg-gray-50'} border-b-2 border-black p-2 md:p-3`}>
@@ -597,7 +637,9 @@ function App() {
                 className={`
                   max-w-[85%] md:max-w-[70%] border-4 border-black p-2 md:p-3 relative
                   ${isMe
-                    ? "bg-yellow-300 shadow-neo rounded-none"
+                    ? isPremium
+                      ? "bg-gradient-to-r from-pink-200 via-purple-200 to-indigo-200 dark:from-purple-900/50 dark:via-fuchsia-900/50 dark:to-indigo-950/50 text-black dark:text-white shadow-neo rounded-none"
+                      : "bg-yellow-300 shadow-neo rounded-none"
                     : isGemini
                       ? "bg-purple-200 shadow-neo rounded-none"
                       : "bg-white shadow-neo-sm rounded-none"
@@ -632,9 +674,16 @@ function App() {
 
                 {/* Timestamp and reply button */}
                 <div className="flex items-center justify-between mt-1 gap-2">
-                  <p className="font-mono text-[10px] opacity-60">
-                    {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-mono text-[10px] opacity-60">
+                      {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    {isMe && isPremium && (
+                      <span className="font-mono text-[8px] bg-black text-yellow-300 px-1 py-0.5 border border-black uppercase font-black rounded tracking-wide">
+                        👑 PRO
+                      </span>
+                    )}
+                  </div>
                   {!isMe && !isGemini && (
                     <button
                       onClick={() => setReplyingTo(msg)}
@@ -765,6 +814,88 @@ function App() {
           </p>
         </div>
       </div>
+
+      {/* Premium Upgrade Modal */}
+      {showPremiumModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 border-4 border-black shadow-neo w-full max-w-md p-6 relative">
+            {/* Close button */}
+            <button
+              onClick={() => setShowPremiumModal(false)}
+              className="absolute top-3 right-3 border-2 border-black p-1.5 hover:bg-red-500 hover:text-white dark:text-white dark:hover:text-white transition-colors shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none bg-white dark:bg-gray-700"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="text-center mb-6">
+              <span className="text-3xl">👑</span>
+              <h2 className="text-2xl font-black uppercase dark:text-white mt-2">ANONYCHAT PREMIUM</h2>
+              <p className="font-mono text-xs font-bold text-purple-600 dark:text-purple-400 mt-1">STATUS: {isPremium ? "ACTIVE" : "STANDARD"}</p>
+            </div>
+
+            <div className="space-y-4 mb-6 text-black">
+              <div className="border-2 border-black p-3 bg-purple-100 dark:bg-purple-900/30 flex items-start gap-3">
+                <span className="text-xl shrink-0">🎨</span>
+                <div className="text-left">
+                  <h4 className="font-bold text-sm dark:text-white">Premium Chat Theme</h4>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">Unlock a gorgeous pastel gradient layout for your sent messages.</p>
+                </div>
+              </div>
+
+              <div className="border-2 border-black p-3 bg-yellow-100 dark:bg-yellow-900/30 flex items-start gap-3">
+                <span className="text-xl shrink-0">👑</span>
+                <div className="text-left">
+                  <h4 className="font-bold text-sm dark:text-white">PRO Badge</h4>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">Display a premium crown badge next to your messages and username.</p>
+                </div>
+              </div>
+
+              <div className="border-2 border-black p-3 bg-green-100 dark:bg-green-900/30 flex items-start gap-3">
+                <span className="text-xl shrink-0">🚫</span>
+                <div className="text-left">
+                  <h4 className="font-bold text-sm dark:text-white">Ad-Free Experience</h4>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">Completely hide all banner advertisements in the chat interface.</p>
+                </div>
+              </div>
+            </div>
+
+            {isPremium ? (
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    setHideAdsIfPremium(!hideAdsIfPremium);
+                  }}
+                  className={`w-full font-bold border-4 border-black py-3 px-6 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all text-sm uppercase ${
+                    hideAdsIfPremium ? 'bg-green-400 hover:bg-green-300 text-black' : 'bg-red-400 hover:bg-red-300 text-black'
+                  }`}
+                >
+                  {hideAdsIfPremium ? "SHOW ADS (Support Devs)" : "HIDE ADS (Ad-Free Mode)"}
+                </button>
+                <button
+                  onClick={() => {
+                    setIsPremium(false);
+                    setHideAdsIfPremium(false);
+                  }}
+                  className="w-full bg-gray-200 hover:bg-gray-300 text-black font-bold border-2 border-black py-2 px-6 text-xs uppercase"
+                >
+                  Downgrade to Free Tier
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setIsPremium(true);
+                  setHideAdsIfPremium(true);
+                  alert("👑 Welcome to ANONYCHAT Premium! Your pro benefits are now active.");
+                }}
+                className="w-full bg-pink-500 hover:bg-pink-400 text-white font-bold border-4 border-black py-3 px-6 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all text-sm uppercase"
+              >
+                ACTIVATE PREMIUM (FREE TRIAL)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
