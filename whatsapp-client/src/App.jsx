@@ -4,10 +4,29 @@ import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from './firebase';
 import { Send, LogOut, MessageSquare, Zap, Reply, X, AtSign } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
+import Blog from './Blog';
+import About from './About';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
 
 function App() {
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+    };
+  }, []);
+
+  const navigate = (to) => {
+    window.history.pushState({}, '', to);
+    window.dispatchEvent(new Event('popstate'));
+  };
+
   const [user, setUser] = useState(null);
   const [username, setUsername] = useState(""); // Store the random username
   const [socket, setSocket] = useState(null);
@@ -333,10 +352,21 @@ function App() {
 
   // --- RENDER COMPONENTS ---
 
+  // Blog and About routes
+  if (currentPath === '/blog') {
+    return <Blog navigate={navigate} />;
+  }
+  if (currentPath === '/about') {
+    return <About navigate={navigate} />;
+  }
+
   // 1. LOGIN SCREEN (Mobile Optimized)
   if (!user) {
     return (
       <div className="h-[100dvh] w-full flex items-center justify-center p-4 bg-gray-100">
+        {/* Hidden SEO/Navigation links as requested */}
+        <a href="/blog" onClick={(e) => { e.preventDefault(); navigate('/blog'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">Blog</a>
+        <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">About</a>
         <div className="bg-white border-4 border-black shadow-neo w-full max-w-md p-6 md:p-8 text-center">
           <div className="bg-black border-2 border-black w-20 h-20 md:w-24 md:h-24 mx-auto mb-6 flex items-center justify-center shadow-neo-sm overflow-hidden">
             <img src="/logo.jpg" alt="ANONYCHAT Logo" className="w-full h-full object-cover" />
@@ -367,6 +397,9 @@ function App() {
   if (!isInRoom) {
     return (
       <div className="h-[100dvh] w-full flex items-center justify-center p-4 bg-gray-100">
+        {/* Hidden SEO/Navigation links as requested */}
+        <a href="/blog" onClick={(e) => { e.preventDefault(); navigate('/blog'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">Blog</a>
+        <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">About</a>
         <div className="bg-white border-4 border-black shadow-neo w-full max-w-md p-6 md:p-8">
           <div className="flex justify-between items-center mb-6 md:mb-8">
             <h2 className="text-xl md:text-2xl font-black uppercase">Select Zone</h2>
@@ -431,6 +464,9 @@ function App() {
   // 3. CHAT INTERFACE (with threading, mentions, and Gemini)
   return (
     <div className={`h-[100dvh] flex flex-col w-full md:max-w-3xl md:mx-auto md:p-4 ${isDarkTheme ? 'bg-gray-900' : 'bg-gray-100'} md:bg-transparent`}>
+      {/* Hidden SEO/Navigation links as requested */}
+      <a href="/blog" onClick={(e) => { e.preventDefault(); navigate('/blog'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">Blog</a>
+      <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">About</a>
 
       {/* Header */}
       <div className={`${isDarkTheme ? 'bg-gray-900 text-white' : 'bg-white'} border-b-4 md:border-4 border-black md:shadow-neo p-3 md:p-4 flex justify-between items-center z-10 sticky top-0 shrink-0`}>
