@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Info, X, Zap, Shield, HelpCircle } from 'lucide-react';
+import { Sparkles, Info, X, Zap, Shield } from 'lucide-react';
 
 const AD_CAMPAIGNS = [
   {
@@ -36,7 +36,7 @@ const AD_CAMPAIGNS = [
 
 export default function GoogleAd({ isDarkTheme, onAction, client, slot }) {
   const [adState, setAdState] = useState('active'); // 'active' | 'feedback' | 'closed'
-  const [useFallback, setUseFallback] = useState(true);
+  const [adType, setAdType] = useState('fallback'); // 'fallback' | 'adsense' | 'admob'
   const [campaign, setCampaign] = useState(AD_CAMPAIGNS[0]);
 
   // Select a random campaign on mount
@@ -45,16 +45,48 @@ export default function GoogleAd({ isDarkTheme, onAction, client, slot }) {
     setCampaign(AD_CAMPAIGNS[randomIndex]);
   }, []);
 
-  // AdSense integration
+  // AdMob & AdSense integration
   useEffect(() => {
-    const adClient = client || import.meta.env.VITE_ADSENSE_CLIENT;
-    const adSlot = slot || import.meta.env.VITE_ADSENSE_SLOT;
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    // 1. Check for Mobile Wrapper (Capacitor/Cordova) for Google AdMob
+    const isCapacitor = window.Capacitor !== undefined;
+    const isCordova = window.cordova !== undefined;
 
+    if (isCapacitor || isCordova) {
+      // Check if native AdMob plugin is registered in Capacitor
+      if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob) {
+        setAdType('admob');
+        const AdMob = window.Capacitor.Plugins.AdMob;
+        
+        // Initialize AdMob and show banner
+        const adMobId = import.meta.env.VITE_ADMOB_BANNER_ID || 'ca-app-pub-3940256099942544/6300978111'; // Google AdMob Banner Test ID
+        
+        AdMob.initialize({ requestTrackingAuthorization: true })
+          .then(() => {
+            AdMob.showBanner({
+              adId: adMobId,
+              adSize: 'BANNER',
+              position: 'BOTTOM_CENTER',
+              margin: 0
+            });
+          })
+          .catch((err) => {
+            console.warn("Google AdMob initialization error:", err);
+            setAdType('fallback');
+          });
+        return;
+      }
+    }
+
+    // 2. Fall back to Google AdSense for Web
     if (isLocalhost) {
-      setUseFallback(true);
+      setAdType('fallback');
       return;
     }
+
+    const adClient = client || import.meta.env.VITE_ADSENSE_CLIENT;
+    const adSlot = slot || import.meta.env.VITE_ADSENSE_SLOT;
 
     if (adClient && adSlot) {
       try {
@@ -69,17 +101,31 @@ export default function GoogleAd({ isDarkTheme, onAction, client, slot }) {
           document.head.appendChild(script);
         }
 
-        // Initialize ad
+        // Initialize Web AdSense
         (window.adsbygoogle = window.adsbygoogle || []).push({});
-        setUseFallback(false);
+        setAdType('adsense');
       } catch (err) {
         console.warn("Failed to load Google AdSense script:", err);
-        setUseFallback(true);
+        setAdType('fallback');
       }
     } else {
-      setUseFallback(true);
+      setAdType('fallback');
     }
   }, [client, slot]);
+
+  // Clean up AdMob native banner if component unmounts or ad is closed
+  useEffect(() => {
+    return () => {
+      const isCapacitor = window.Capacitor !== undefined;
+      if (isCapacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob) {
+        try {
+          window.Capacitor.Plugins.AdMob.hideBanner();
+        } catch (e) {
+          // Silence cleanup error
+        }
+      }
+    };
+  }, [adState]);
 
   if (adState === 'closed') {
     return null;
@@ -93,8 +139,8 @@ export default function GoogleAd({ isDarkTheme, onAction, client, slot }) {
     }
   };
 
-  // Render standard AdSense structure
-  const renderRealAd = () => {
+  // Render standard AdSense structure (Web)
+  const renderRealAdSense = () => {
     const adClient = client || import.meta.env.VITE_ADSENSE_CLIENT;
     const adSlot = slot || import.meta.env.VITE_ADSENSE_SLOT;
     return (
@@ -105,6 +151,15 @@ export default function GoogleAd({ isDarkTheme, onAction, client, slot }) {
              data-ad-slot={adSlot}
              data-ad-format="horizontal"
              data-full-width-responsive="false"></ins>
+      </div>
+    );
+  };
+
+  // Render AdMob Spacer (Native banners float over the webview, requiring DOM offset spacing)
+  const renderAdMobSpacer = () => {
+    return (
+      <div className={`w-full py-3 px-4 border-b-4 border-black text-center font-mono text-xs ${isDarkTheme ? 'bg-gray-800 text-gray-400' : 'bg-gray-200 text-gray-600'}`}>
+        ⚡ Native Google AdMob banner loaded successfully overlaying view.
       </div>
     );
   };
@@ -199,7 +254,8 @@ export default function GoogleAd({ isDarkTheme, onAction, client, slot }) {
 
   return (
     <div className="w-full shrink-0 select-none z-10">
-      {useFallback ? renderFallbackAd() : renderRealAd()}
+      {adType === 'admob' ? renderAdMobSpacer() : adType === 'adsense' ? renderRealAdSense() : renderFallbackAd()}
     </div>
   );
 }
+
