@@ -224,16 +224,16 @@ export default function GoogleAd({ isDarkTheme, onAction, client, slot }) {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 sm:mt-1 pt-1.5">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-4 sm:mt-1 pt-1.5 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <div className="bg-black text-yellow-400 p-2 border-2 border-black hidden md:block animate-pulse shrink-0">
               {campaign.id === 'premium' ? <Zap size={20} /> : campaign.id === 'gemini' ? <Sparkles size={20} /> : <Shield size={20} />}
             </div>
-            <div>
-              <h3 className="font-black text-sm md:text-base leading-tight tracking-tight uppercase">
+            <div className="min-w-0 flex-1">
+              <h3 className="font-black text-xs md:text-sm leading-tight tracking-tight uppercase truncate">
                 {campaign.title}
               </h3>
-              <p className="text-xs opacity-90 line-clamp-2 sm:line-clamp-1 max-w-[450px] leading-snug">
+              <p className="text-[10px] md:text-xs opacity-90 line-clamp-2 leading-snug break-words">
                 {campaign.description}
               </p>
             </div>
@@ -242,7 +242,7 @@ export default function GoogleAd({ isDarkTheme, onAction, client, slot }) {
           <div className="shrink-0 flex items-center justify-end">
             <button
               onClick={handleCtaClick}
-              className={`text-xs md:text-sm font-black border-2 border-black py-1.5 px-4 shadow-neo-sm hover:scale-[1.02] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all uppercase ${campaign.ctaColor}`}
+              className={`text-[10px] md:text-xs font-black border-2 border-black py-1 px-3 shadow-neo-sm hover:scale-[1.02] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all uppercase ${campaign.ctaColor}`}
             >
               {campaign.cta}
             </button>

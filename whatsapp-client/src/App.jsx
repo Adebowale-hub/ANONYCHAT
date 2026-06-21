@@ -718,10 +718,10 @@ function App() {
                 >
                   {/* Thread indicator - parent message preview */}
                   {parentMsg && (
-                    <div className="mb-2 pb-2 border-b-2 border-black border-dashed opacity-60">
-                      <div className="flex items-start gap-1">
+                    <div className="mb-2 pb-2 border-b-2 border-black border-dashed opacity-60 overflow-hidden">
+                      <div className="flex items-start gap-1 min-w-0 w-full">
                         <Reply size={12} className="mt-0.5 shrink-0" />
-                        <div className="text-[10px] font-mono">
+                        <div className="text-[10px] font-mono min-w-0 flex-1">
                           <span className="font-bold">@{parentMsg.senderUsername}</span>
                           <p className="truncate">{parentMsg.text}</p>
                         </div>
