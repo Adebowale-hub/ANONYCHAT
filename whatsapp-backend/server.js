@@ -73,6 +73,7 @@ io.on("connection", (socket) => {
     // Support both old format (string) and new format (object with password)
     const roomId = typeof data === 'string' ? data : data.roomId;
     const password = typeof data === 'object' ? data.password : null;
+    const requestedUsername = typeof data === 'object' ? data.username : null;
 
     // Check if room has password and validate
     if (roomPasswords[roomId]) {
@@ -95,14 +96,31 @@ io.on("connection", (socket) => {
     socket.join(roomId);
     socket.activeRoom = roomId;
 
-    // Generate a NEW random username for this room
-    const newUsername = generateRandomUsername();
-    socket.roomUsernames[roomId] = newUsername;
-
-    // Track user in this room for @mentions
     if (!roomUsers[roomId]) {
       roomUsers[roomId] = [];
     }
+
+    // Check if a session already exists for this email in this room
+    const existingUserSession = roomUsers[roomId].find(u => u.email === socket.user.email);
+    let newUsername = requestedUsername;
+
+    if (existingUserSession) {
+      // Reuse their current username
+      newUsername = existingUserSession.username;
+      // Remove their old socket ID session to avoid duplicates
+      roomUsers[roomId] = roomUsers[roomId].filter(u => u.email !== socket.user.email);
+      console.log(`Reusing username ${newUsername} for user ${socket.user.email} due to existing session`);
+    } else {
+      // If a username was requested, check if it's already taken by another email
+      const isTaken = roomUsers[roomId].some(u => u.username === requestedUsername);
+      if (!newUsername || isTaken) {
+        newUsername = generateRandomUsername();
+      }
+    }
+
+    socket.roomUsernames[roomId] = newUsername;
+
+    // Track user in this room for @mentions
     roomUsers[roomId].push({
       socketId: socket.id,
       username: newUsername,
@@ -111,23 +129,25 @@ io.on("connection", (socket) => {
 
     console.log(`User ${socket.user.email} joined room ${roomId} as ${newUsername}`);
 
-    // Send the new username to the client
+    // Send the assigned/reused username to the client
     socket.emit("username_assigned", newUsername);
 
     // Send updated user list to all clients in room (for @mentions)
     const userList = roomUsers[roomId].map(u => u.username);
     io.to(roomId).emit("room_users_update", userList);
 
-    // Announce Join
-    const systemMessage = {
-      text: `${newUsername} HAS ENTERED THE CHAT`,
-      senderEmail: "system",
-      roomId: roomId,
-      createdAt: new Date().toISOString(),
-      isSystem: true,
-      id: Date.now()
-    };
-    io.to(roomId).emit("receive_message", systemMessage);
+    // Announce Join only if it was not a quick reconnection
+    if (!existingUserSession) {
+      const systemMessage = {
+        text: `${newUsername} HAS ENTERED THE CHAT`,
+        senderEmail: "system",
+        roomId: roomId,
+        createdAt: new Date().toISOString(),
+        isSystem: true,
+        id: Date.now()
+      };
+      io.to(roomId).emit("receive_message", systemMessage);
+    }
   });
 
   // 2. NEW EVENT: LEAVE ROOM (Clicking the button)

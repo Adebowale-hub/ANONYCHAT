@@ -98,9 +98,9 @@ function App() {
   };
 
   const [user, setUser] = useState(null);
-  const [username, setUsername] = useState(""); // Store the random username
+  const [username, setUsername] = useState(() => localStorage.getItem('active_room_username') || ""); // Store the random username
   const [socket, setSocket] = useState(null);
-  const [room, setRoom] = useState("");
+  const [room, setRoom] = useState(() => localStorage.getItem('active_room') || "");
   const [isInRoom, setIsInRoom] = useState(false);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
@@ -135,8 +135,19 @@ function App() {
   const MAX_MESSAGE_LENGTH = 500;
 
   // Room password
-  const [roomPassword, setRoomPassword] = useState("");
+  const [roomPassword, setRoomPassword] = useState(() => localStorage.getItem('active_room_password') || "");
   const [showPasswordInput, setShowPasswordInput] = useState(false);
+
+  // Refs to avoid stale closures in socket events
+  const roomRef = useRef(room);
+  const isInRoomRef = useRef(isInRoom);
+  const roomPasswordRef = useRef(roomPassword);
+  const usernameRef = useRef(username);
+
+  useEffect(() => { roomRef.current = room; }, [room]);
+  useEffect(() => { isInRoomRef.current = isInRoom; }, [isInRoom]);
+  useEffect(() => { roomPasswordRef.current = roomPassword; }, [roomPassword]);
+  useEffect(() => { usernameRef.current = username; }, [username]);
 
   // Search messages
   const [searchQuery, setSearchQuery] = useState("");
@@ -199,9 +210,36 @@ function App() {
       auth: { token: token }
     });
 
+    // Auto-rejoin on connect/reconnect, or auto-join stored room on initial page load
+    newSocket.on("connect", () => {
+      console.log("Socket connected:", newSocket.id);
+
+      const savedRoom = localStorage.getItem('active_room');
+      const savedPassword = localStorage.getItem('active_room_password');
+      const savedUsername = localStorage.getItem('active_room_username');
+
+      if (isInRoomRef.current && roomRef.current) {
+        console.log("Rejoining active room:", roomRef.current);
+        newSocket.emit("join_room", {
+          roomId: roomRef.current,
+          password: roomPasswordRef.current || undefined,
+          username: usernameRef.current || undefined
+        });
+      } else if (savedRoom) {
+        console.log("Auto-joining stored room on load:", savedRoom);
+        setIsJoining(true);
+        newSocket.emit("join_room", {
+          roomId: savedRoom,
+          password: savedPassword || undefined,
+          username: savedUsername || undefined
+        });
+      }
+    });
+
     // Listen for username from backend (sent when joining a room)
     newSocket.on("username_assigned", (assignedUsername) => {
       setUsername(assignedUsername);
+      localStorage.setItem('active_room_username', assignedUsername);
       setIsInRoom(true); // Successfully joined room
       setIsJoining(false); // Stop loading
       console.log("Username assigned:", assignedUsername);
@@ -247,6 +285,13 @@ function App() {
     newSocket.on("join_error", ({ error }) => {
       alert(error);
       setIsJoining(false);
+      // Clear storage to avoid infinite reconnect loop
+      localStorage.removeItem('active_room');
+      localStorage.removeItem('active_room_password');
+      localStorage.removeItem('active_room_username');
+      setRoom("");
+      setRoomPassword("");
+      setIsInRoom(false);
     });
 
     // Listen for password requirement
@@ -254,6 +299,11 @@ function App() {
       setShowPasswordInput(true);
       setIsJoining(false);
       alert(`Room "${roomId}" is password protected. Please enter the password.`);
+      // Clear storage
+      localStorage.removeItem('active_room');
+      localStorage.removeItem('active_room_password');
+      localStorage.removeItem('active_room_username');
+      setIsInRoom(false);
     });
 
     setSocket(newSocket);
@@ -305,15 +355,21 @@ function App() {
       setIsJoining(true);
       setRoom(sanitized); // Update with sanitized version
 
-      // Emit join - only send password if it's provided
+      // Clear the previous stored username because we are manually joining a new room/zone
+      localStorage.removeItem('active_room_username');
+      setUsername("");
+
+      localStorage.setItem('active_room', sanitized);
       if (roomPassword) {
-        socket.emit("join_room", { roomId: sanitized, password: roomPassword });
+        localStorage.setItem('active_room_password', roomPassword);
       } else {
-        socket.emit("join_room", sanitized); // Old format for non-password rooms
+        localStorage.removeItem('active_room_password');
       }
 
-      // Wait for username assignment, then show chat
-      // The actual setIsInRoom(true) is now handled in the "username_assigned" socket event
+      socket.emit("join_room", { 
+        roomId: sanitized, 
+        password: roomPassword || undefined 
+      });
     }
   };
 
@@ -335,6 +391,11 @@ function App() {
     setRoom("");
     setRoomPassword("");
     setReplyingTo(null);
+
+    // Clear localStorage
+    localStorage.removeItem('active_room');
+    localStorage.removeItem('active_room_password');
+    localStorage.removeItem('active_room_username');
   };
 
   const copyRoomLink = () => {
@@ -452,7 +513,7 @@ function App() {
         {/* Hidden SEO/Navigation links as requested */}
         <a href="/blog" onClick={(e) => { e.preventDefault(); navigate('/blog'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">Blog</a>
         <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">About</a>
-        <div className="bg-white border-4 border-black shadow-neo w-full max-w-md p-6 md:p-8 text-center">
+        <div className="bg-white border-4 border-black shadow-neo w-full max-w-[calc(100vw-2rem)] sm:max-w-md p-6 md:p-8 text-center">
           <div className="bg-black border-2 border-black w-20 h-20 md:w-24 md:h-24 mx-auto mb-6 flex items-center justify-center shadow-neo-sm overflow-hidden">
             <img src="/logo.jpg" alt="ANONYCHAT Logo" className="w-full h-full object-cover" />
           </div>
@@ -493,7 +554,7 @@ function App() {
         {/* Hidden SEO/Navigation links as requested */}
         <a href="/blog" onClick={(e) => { e.preventDefault(); navigate('/blog'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">Blog</a>
         <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">About</a>
-        <div className="bg-white border-4 border-black shadow-neo w-full max-w-md p-6 md:p-8">
+        <div className="bg-white border-4 border-black shadow-neo w-full max-w-[calc(100vw-2rem)] sm:max-w-md p-6 md:p-8">
           <div className="flex justify-between items-center mb-6 md:mb-8">
             <h2 className="text-xl md:text-2xl font-black uppercase">Select Zone</h2>
             <button onClick={() => auth.signOut()} className="border-2 border-black p-2 hover:bg-red-500 hover:text-white transition-colors shadow-neo-sm active:shadow-none active:translate-x-[3px] active:translate-y-[3px]">
