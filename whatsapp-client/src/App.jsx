@@ -10,6 +10,75 @@ import GoogleAd from './GoogleAd';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
 
+// Swipeable component to enable swipe-to-reply gesture on mobile
+function SwipeableMessage({ children, onSwipeReply, isMe }) {
+  const [startX, setStartX] = useState(0);
+  const [startY, setStartY] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+
+  const handleTouchStart = (e) => {
+    setStartX(e.touches[0].clientX);
+    setStartY(e.touches[0].clientY);
+    setSwiping(true);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!swiping) return;
+    const diffX = e.touches[0].clientX - startX;
+    const diffY = e.touches[0].clientY - startY;
+
+    if (Math.abs(diffX) > Math.abs(diffY) * 1.2) {
+      if (diffX > 0) {
+        if (e.cancelable) e.preventDefault();
+        setOffset(Math.min(diffX, 80));
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setSwiping(false);
+    if (offset >= 50) {
+      onSwipeReply();
+      if (navigator.vibrate) {
+        try {
+          navigator.vibrate(15);
+        } catch (err) {}
+      }
+    }
+    setOffset(0);
+  };
+
+  return (
+    <div className="relative w-full overflow-hidden select-none">
+      <div 
+        className="absolute left-4 top-0 bottom-0 flex items-center transition-all duration-150 pointer-events-none"
+        style={{ 
+          opacity: offset > 10 ? Math.min((offset - 10) / 40, 1) : 0,
+          transform: `scale(${offset >= 50 ? 1.15 : 0.85})`,
+        }}
+      >
+        <div className="bg-yellow-300 border-2 border-black p-1.5 rounded-full shadow-neo-sm text-black flex items-center justify-center">
+          <Reply size={14} className="stroke-[2.5]" />
+        </div>
+      </div>
+
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          transform: `translateX(${offset}px)`,
+          transition: swiping ? 'none' : 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+        }}
+        className="w-full"
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
@@ -96,6 +165,91 @@ function App() {
       leaveRoom();
       setShowPasswordInput(true);
     }
+  };
+
+  // Render the Premium Upgrade Modal across all views
+  const renderPremiumModal = () => {
+    if (!showPremiumModal) return null;
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="bg-white dark:bg-gray-800 border-4 border-black shadow-neo w-full max-w-md p-6 relative">
+          {/* Close button */}
+          <button
+            onClick={() => setShowPremiumModal(false)}
+            className="absolute top-3 right-3 border-2 border-black p-1.5 hover:bg-red-500 hover:text-white dark:text-white dark:hover:text-white transition-colors shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none bg-white dark:bg-gray-700"
+          >
+            <X size={16} />
+          </button>
+
+          <div className="text-center mb-6">
+            <span className="text-3xl">👑</span>
+            <h2 className="text-2xl font-black uppercase dark:text-white mt-2">ANONYCHAT PREMIUM</h2>
+            <p className="font-mono text-xs font-bold text-purple-600 dark:text-purple-400 mt-1">STATUS: {isPremium ? "ACTIVE" : "STANDARD"}</p>
+          </div>
+
+          <div className="space-y-4 mb-6 text-black">
+            <div className="border-2 border-black p-3 bg-purple-100 dark:bg-purple-900/30 flex items-start gap-3">
+              <span className="text-xl shrink-0">🎨</span>
+              <div className="text-left">
+                <h4 className="font-bold text-sm dark:text-white">Premium Chat Theme</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-300">Unlock a gorgeous pastel gradient layout for your sent messages.</p>
+              </div>
+            </div>
+
+            <div className="border-2 border-black p-3 bg-yellow-100 dark:bg-yellow-900/30 flex items-start gap-3">
+              <span className="text-xl shrink-0">👑</span>
+              <div className="text-left">
+                <h4 className="font-bold text-sm dark:text-white">PRO Badge</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-300">Display a premium crown badge next to your messages and username.</p>
+              </div>
+            </div>
+
+            <div className="border-2 border-black p-3 bg-green-100 dark:bg-green-900/30 flex items-start gap-3">
+              <span className="text-xl shrink-0">🚫</span>
+              <div className="text-left">
+                <h4 className="font-bold text-sm dark:text-white">Ad-Free Experience</h4>
+                <p className="text-xs text-gray-600 dark:text-gray-300">Completely hide all banner advertisements in the chat interface.</p>
+              </div>
+            </div>
+          </div>
+
+          {isPremium ? (
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setHideAdsIfPremium(!hideAdsIfPremium);
+                }}
+                className={`w-full font-bold border-4 border-black py-3 px-6 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all text-sm uppercase ${
+                  hideAdsIfPremium ? 'bg-green-400 hover:bg-green-300 text-black' : 'bg-red-400 hover:bg-red-300 text-black'
+                }`}
+              >
+                {hideAdsIfPremium ? "SHOW ADS (Support Devs)" : "HIDE ADS (Ad-Free Mode)"}
+              </button>
+              <button
+                onClick={() => {
+                  setIsPremium(false);
+                  setHideAdsIfPremium(false);
+                }}
+                className="w-full bg-gray-200 hover:bg-gray-300 text-black font-bold border-2 border-black py-2 px-6 text-xs uppercase"
+              >
+                Downgrade to Free Tier
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setIsPremium(true);
+                setHideAdsIfPremium(true);
+                alert("👑 Welcome to ANONYCHAT Premium! Your pro benefits are now active.");
+              }}
+              className="w-full bg-pink-500 hover:bg-pink-400 text-white font-bold border-4 border-black py-3 px-6 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all text-sm uppercase"
+            >
+              ACTIVATE PREMIUM (FREE TRIAL)
+            </button>
+          )}
+        </div>
+      </div>
+    );
   };
 
   // Filter messages based on search
@@ -409,7 +563,18 @@ function App() {
               🤖 AI ASSISTANT COMING SOON
             </p>
           </div>
+
+          {/* Google Ads */}
+          {(!isPremium || !hideAdsIfPremium) && (
+            <div className="mt-6 border-t-2 border-black pt-4">
+              <GoogleAd
+                isDarkTheme={false}
+                onAction={handleAdAction}
+              />
+            </div>
+          )}
         </div>
+        {renderPremiumModal()}
       </div>
     );
   }
@@ -477,7 +642,18 @@ function App() {
               🤖 AI ASSISTANT COMING SOON
             </p>
           </div>
+
+          {/* Google Ads */}
+          {(!isPremium || !hideAdsIfPremium) && (
+            <div className="mt-6 border-t-2 border-black pt-4">
+              <GoogleAd
+                isDarkTheme={false}
+                onAction={handleAdAction}
+              />
+            </div>
+          )}
         </div>
+        {renderPremiumModal()}
       </div>
     );
   }
@@ -628,74 +804,79 @@ function App() {
           const parentMsg = msg.replyTo ? findParentMessage(msg.replyTo) : null;
 
           return (
-            <div
+            <SwipeableMessage
               key={index || msg.id}
-              id={`msg-${msg.id}`}
-              className={`flex ${isMe ? "justify-end" : "justify-start"}`}
+              onSwipeReply={() => setReplyingTo(msg)}
+              isMe={isMe}
             >
               <div
-                className={`
-                  max-w-[85%] md:max-w-[70%] border-4 border-black p-2 md:p-3 relative
-                  ${isMe
-                    ? isPremium
-                      ? "bg-gradient-to-r from-pink-200 via-purple-200 to-indigo-200 dark:from-purple-900/50 dark:via-fuchsia-900/50 dark:to-indigo-950/50 text-black dark:text-white shadow-neo rounded-none"
-                      : "bg-yellow-300 shadow-neo rounded-none"
-                    : isGemini
-                      ? "bg-purple-200 shadow-neo rounded-none"
-                      : "bg-white shadow-neo-sm rounded-none"
-                  }
-                `}
+                id={`msg-${msg.id}`}
+                className={`flex ${isMe ? "justify-end" : "justify-start"} px-2`}
               >
-                {/* Thread indicator - parent message preview */}
-                {parentMsg && (
-                  <div className="mb-2 pb-2 border-b-2 border-black border-dashed opacity-60">
-                    <div className="flex items-start gap-1">
-                      <Reply size={12} className="mt-0.5 shrink-0" />
-                      <div className="text-[10px] font-mono">
-                        <span className="font-bold">@{parentMsg.senderUsername}</span>
-                        <p className="truncate">{parentMsg.text}</p>
+                <div
+                  className={`
+                    max-w-[85%] md:max-w-[70%] border-4 border-black p-2 md:p-3 relative
+                    ${isMe
+                      ? isPremium
+                        ? "bg-gradient-to-r from-pink-200 via-purple-200 to-indigo-200 dark:from-purple-900/50 dark:via-fuchsia-900/50 dark:to-indigo-950/50 text-black dark:text-white shadow-neo rounded-none"
+                        : "bg-yellow-300 shadow-neo rounded-none"
+                      : isGemini
+                        ? "bg-purple-200 shadow-neo rounded-none"
+                        : "bg-white shadow-neo-sm rounded-none"
+                    }
+                  `}
+                >
+                  {/* Thread indicator - parent message preview */}
+                  {parentMsg && (
+                    <div className="mb-2 pb-2 border-b-2 border-black border-dashed opacity-60">
+                      <div className="flex items-start gap-1">
+                        <Reply size={12} className="mt-0.5 shrink-0" />
+                        <div className="text-[10px] font-mono">
+                          <span className="font-bold">@{parentMsg.senderUsername}</span>
+                          <p className="truncate">{parentMsg.text}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Sender info */}
-                {!isMe && (
-                  <p className={`font-mono text-[10px] md:text-xs font-bold mb-1 truncate ${isGemini ? 'text-purple-700' : 'text-pink-600'}`}>
-                    @{msg.senderUsername || msg.senderEmail.split('@')[0]}
-                    {isGemini && " 🤖"}
-                  </p>
-                )}
-
-                {/* Message text with mention highlighting */}
-                <p className="font-bold text-base md:text-lg leading-snug break-words">
-                  {renderTextWithMentions(msg.text)}
-                </p>
-
-                {/* Timestamp and reply button */}
-                <div className="flex items-center justify-between mt-1 gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-mono text-[10px] opacity-60">
-                      {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {/* Sender info */}
+                  {!isMe && (
+                    <p className={`font-mono text-[10px] md:text-xs font-bold mb-1 truncate ${isGemini ? 'text-purple-700' : 'text-pink-600'}`}>
+                      @{msg.senderUsername || msg.senderEmail.split('@')[0]}
+                      {isGemini && " 🤖"}
                     </p>
-                    {isMe && isPremium && (
-                      <span className="font-mono text-[8px] bg-black text-yellow-300 px-1 py-0.5 border border-black uppercase font-black rounded tracking-wide">
-                        👑 PRO
-                      </span>
+                  )}
+
+                  {/* Message text with mention highlighting */}
+                  <p className="font-bold text-base md:text-lg leading-snug break-words">
+                    {renderTextWithMentions(msg.text)}
+                  </p>
+
+                  {/* Timestamp and reply button */}
+                  <div className="flex items-center justify-between mt-1 gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-mono text-[10px] opacity-60">
+                        {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      {isMe && isPremium && (
+                        <span className="font-mono text-[8px] bg-black text-yellow-300 px-1 py-0.5 border border-black uppercase font-black rounded tracking-wide">
+                          👑 PRO
+                        </span>
+                      )}
+                    </div>
+                    {!isMe && !isGemini && (
+                      <button
+                        onClick={() => setReplyingTo(msg)}
+                        className="opacity-50 hover:opacity-100 transition-opacity"
+                        title="Reply to this message"
+                      >
+                        <Reply size={14} />
+                      </button>
                     )}
                   </div>
-                  {!isMe && !isGemini && (
-                    <button
-                      onClick={() => setReplyingTo(msg)}
-                      className="opacity-50 hover:opacity-100 transition-opacity"
-                      title="Reply to this message"
-                    >
-                      <Reply size={14} />
-                    </button>
-                  )}
                 </div>
               </div>
-            </div>
+            </SwipeableMessage>
           );
         })}
 
@@ -816,86 +997,7 @@ function App() {
       </div>
 
       {/* Premium Upgrade Modal */}
-      {showPremiumModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 border-4 border-black shadow-neo w-full max-w-md p-6 relative">
-            {/* Close button */}
-            <button
-              onClick={() => setShowPremiumModal(false)}
-              className="absolute top-3 right-3 border-2 border-black p-1.5 hover:bg-red-500 hover:text-white dark:text-white dark:hover:text-white transition-colors shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none bg-white dark:bg-gray-700"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="text-center mb-6">
-              <span className="text-3xl">👑</span>
-              <h2 className="text-2xl font-black uppercase dark:text-white mt-2">ANONYCHAT PREMIUM</h2>
-              <p className="font-mono text-xs font-bold text-purple-600 dark:text-purple-400 mt-1">STATUS: {isPremium ? "ACTIVE" : "STANDARD"}</p>
-            </div>
-
-            <div className="space-y-4 mb-6 text-black">
-              <div className="border-2 border-black p-3 bg-purple-100 dark:bg-purple-900/30 flex items-start gap-3">
-                <span className="text-xl shrink-0">🎨</span>
-                <div className="text-left">
-                  <h4 className="font-bold text-sm dark:text-white">Premium Chat Theme</h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-300">Unlock a gorgeous pastel gradient layout for your sent messages.</p>
-                </div>
-              </div>
-
-              <div className="border-2 border-black p-3 bg-yellow-100 dark:bg-yellow-900/30 flex items-start gap-3">
-                <span className="text-xl shrink-0">👑</span>
-                <div className="text-left">
-                  <h4 className="font-bold text-sm dark:text-white">PRO Badge</h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-300">Display a premium crown badge next to your messages and username.</p>
-                </div>
-              </div>
-
-              <div className="border-2 border-black p-3 bg-green-100 dark:bg-green-900/30 flex items-start gap-3">
-                <span className="text-xl shrink-0">🚫</span>
-                <div className="text-left">
-                  <h4 className="font-bold text-sm dark:text-white">Ad-Free Experience</h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-300">Completely hide all banner advertisements in the chat interface.</p>
-                </div>
-              </div>
-            </div>
-
-            {isPremium ? (
-              <div className="space-y-3">
-                <button
-                  onClick={() => {
-                    setHideAdsIfPremium(!hideAdsIfPremium);
-                  }}
-                  className={`w-full font-bold border-4 border-black py-3 px-6 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all text-sm uppercase ${
-                    hideAdsIfPremium ? 'bg-green-400 hover:bg-green-300 text-black' : 'bg-red-400 hover:bg-red-300 text-black'
-                  }`}
-                >
-                  {hideAdsIfPremium ? "SHOW ADS (Support Devs)" : "HIDE ADS (Ad-Free Mode)"}
-                </button>
-                <button
-                  onClick={() => {
-                    setIsPremium(false);
-                    setHideAdsIfPremium(false);
-                  }}
-                  className="w-full bg-gray-200 hover:bg-gray-300 text-black font-bold border-2 border-black py-2 px-6 text-xs uppercase"
-                >
-                  Downgrade to Free Tier
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  setIsPremium(true);
-                  setHideAdsIfPremium(true);
-                  alert("👑 Welcome to ANONYCHAT Premium! Your pro benefits are now active.");
-                }}
-                className="w-full bg-pink-500 hover:bg-pink-400 text-white font-bold border-4 border-black py-3 px-6 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all text-sm uppercase"
-              >
-                ACTIVATE PREMIUM (FREE TRIAL)
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {renderPremiumModal()}
     </div>
   );
 }
