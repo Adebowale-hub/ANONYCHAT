@@ -3,12 +3,12 @@ import { Sparkles, Info, X, Zap, Shield } from 'lucide-react';
 
 const AD_CAMPAIGNS = [
   {
-    id: 'premium',
-    title: "Disable Ads. Unlock Premium.",
-    description: "Get custom room badges, direct AI commands, and exclusive premium styles.",
-    cta: "UPGRADE NOW",
-    badge: "ANONYCHAT PRO",
-    color: "from-pink-500 to-purple-500",
+    id: 'blog',
+    title: "Read Our Developer Blog",
+    description: "Learn how we built this secure anonymous chat using Socket.io, Firebase, and Vite.",
+    cta: "READ BLOG",
+    badge: "DEVELOPER INFO",
+    color: "from-pink-500 to-rose-500",
     textColor: "text-white",
     ctaColor: "bg-yellow-300 text-black hover:bg-yellow-200"
   },
