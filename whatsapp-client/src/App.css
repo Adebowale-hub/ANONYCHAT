@@ -46,3 +46,20 @@ html, body, #root {
 .read-the-docs {
   color: #888;
 }
+
+@keyframes locateFlash {
+  0% {
+    outline: 6px solid #f87171; /* red-400 */
+    box-shadow: 0 0 15px rgba(248, 113, 113, 0.5);
+    transform: scale(1.03);
+  }
+  100% {
+    outline: none;
+    transform: scale(1);
+  }
+}
+
+.locate-highlight {
+  animation: locateFlash 1.5s ease-out;
+  z-index: 20;
+}

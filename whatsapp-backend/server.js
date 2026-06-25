@@ -252,8 +252,8 @@ io.on("connection", (socket) => {
 
   // Event: Send Message (with threading and Gemini support)
   socket.on("send_message", async (data) => {
-    // data expected format: { roomId, text, replyTo (optional) }
-    const { roomId, text, replyTo } = data;
+    // data expected format: { roomId, text, replyTo (optional), replyToDetails (optional) }
+    const { roomId, text, replyTo, replyToDetails } = data;
 
     if (!roomId || !text) return;
 
@@ -268,6 +268,7 @@ io.on("connection", (socket) => {
       roomId: roomId,
       createdAt: new Date().toISOString(),
       replyTo: replyTo || null, // Thread parent message
+      replyToDetails: replyToDetails || null,
     };
 
     try {

@@ -139,6 +139,14 @@ function App() {
   const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [showProtocolModal, setShowProtocolModal] = useState(false);
   const [showUsersList, setShowUsersList] = useState(false);
+  const [snackbar, setSnackbar] = useState({ show: false, message: "" });
+
+  const showSnackbar = (msg) => {
+    setSnackbar({ show: true, message: msg });
+    setTimeout(() => {
+      setSnackbar(prev => prev.message === msg ? { show: false, message: "" } : prev);
+    }, 4000);
+  };
 
   // Refs to avoid stale closures in socket events
   const roomRef = useRef(room);
@@ -463,7 +471,11 @@ function App() {
     const msgData = {
       roomId: room,
       text: message.trim(),
-      replyTo: replyingTo?.id || null
+      replyTo: replyingTo?.id || null,
+      replyToDetails: replyingTo ? {
+        senderUsername: replyingTo.senderUsername,
+        text: replyingTo.text
+      } : null
     };
 
     await socket.emit("send_message", msgData);
@@ -471,6 +483,22 @@ function App() {
     setReplyingTo(null);
     setShowMentionDropdown(false);
     setIsSending(false);
+  };
+
+  const handleLocateMessage = (replyToId, replyToDetails) => {
+    const parentMsg = messages.find(m => m.id === replyToId);
+    if (parentMsg) {
+      const element = document.getElementById(`msg-${replyToId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('locate-highlight');
+        setTimeout(() => {
+          element.classList.remove('locate-highlight');
+        }, 1500);
+      }
+    } else {
+      showSnackbar("You cannot see this message because you weren't in the room when it was sent.");
+    }
   };
 
   // Handle @ mentions
@@ -896,13 +924,21 @@ function App() {
                   `}
                 >
                   {/* Thread indicator - parent message preview */}
-                  {parentMsg && (
-                    <div className="mb-2 pb-2 border-b-2 border-black border-dashed opacity-60 overflow-hidden">
+                  {msg.replyTo && (
+                    <div 
+                      onClick={() => handleLocateMessage(msg.replyTo, msg.replyToDetails)}
+                      className="mb-2 pb-2 border-b-2 border-black border-dashed opacity-60 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                      title="Click to locate original message"
+                    >
                       <div className="flex items-start gap-1 min-w-0 w-full">
                         <Reply size={12} className="mt-0.5 shrink-0" />
                         <div className="text-[10px] font-mono min-w-0 flex-1">
-                          <span className="font-bold">@{parentMsg.senderUsername}</span>
-                          <p className="truncate">{parentMsg.text}</p>
+                          <span className="font-bold">
+                            @{parentMsg ? parentMsg.senderUsername : (msg.replyToDetails?.senderUsername || "Unknown")}
+                          </span>
+                          <p className="truncate">
+                            {parentMsg ? parentMsg.text : (msg.replyToDetails?.text || "Message not available")}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1060,6 +1096,20 @@ function App() {
         </div>
       </div>
 
+      {/* Snackbar Notification */}
+      {snackbar.show && (
+        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-50 w-11/12 max-w-sm">
+          <div className="bg-red-400 text-black border-4 border-black p-3 shadow-neo font-mono text-xs font-bold flex items-center justify-between gap-2">
+            <span>⚠️ {snackbar.message}</span>
+            <button 
+              onClick={() => setSnackbar({ show: false, message: "" })}
+              className="border-2 border-black bg-white hover:bg-gray-100 p-0.5 font-bold shadow-neo-sm active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
