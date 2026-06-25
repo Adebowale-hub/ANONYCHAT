@@ -137,6 +137,8 @@ function App() {
   // Room password
   const [roomPassword, setRoomPassword] = useState(() => localStorage.getItem('active_room_password') || "");
   const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [showProtocolModal, setShowProtocolModal] = useState(false);
+  const [showUsersList, setShowUsersList] = useState(false);
 
   // Refs to avoid stale closures in socket events
   const roomRef = useRef(room);
@@ -191,6 +193,37 @@ function App() {
       document.body.classList.remove('dark');
     }
   }, [isDarkTheme]);
+
+  // Dynamic Away Status System
+  useEffect(() => {
+    if (!socket || !isInRoom || !room) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        socket.emit("update_status", { roomId: room, status: "away" });
+      } else {
+        socket.emit("update_status", { roomId: room, status: "active" });
+      }
+    };
+
+    const handleBlur = () => {
+      socket.emit("update_status", { roomId: room, status: "away" });
+    };
+
+    const handleFocus = () => {
+      socket.emit("update_status", { roomId: room, status: "active" });
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [socket, isInRoom, room]);
 
   useEffect(() => {
     return auth.onAuthStateChanged(async (currentUser) => {
@@ -351,6 +384,11 @@ function App() {
       return;
     }
 
+    setShowProtocolModal(true);
+  };
+
+  const confirmJoinRoom = () => {
+    const sanitized = sanitizeRoomName(room);
     if (sanitized && socket) {
       setIsJoining(true);
       setRoom(sanitized); // Update with sanitized version
@@ -370,6 +408,7 @@ function App() {
         roomId: sanitized, 
         password: roomPassword || undefined 
       });
+      setShowProtocolModal(false);
     }
   };
 
@@ -391,6 +430,7 @@ function App() {
     setRoom("");
     setRoomPassword("");
     setReplyingTo(null);
+    setShowUsersList(false);
 
     // Clear localStorage
     localStorage.removeItem('active_room');
@@ -619,6 +659,50 @@ function App() {
             />
           </div>
         </div>
+
+        {/* Protocol Modal Overlay */}
+        {showProtocolModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <div className="bg-yellow-100 border-4 border-black p-6 max-w-md w-full shadow-neo text-black relative">
+              <button 
+                onClick={() => setShowProtocolModal(false)}
+                className="absolute top-4 right-4 border-2 border-black p-1 hover:bg-red-400 transition-colors shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none bg-white"
+              >
+                <X size={16} />
+              </button>
+              
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-red-400 border-2 border-black p-1">
+                  <Zap className="stroke-[2.5]" size={20} />
+                </div>
+                <h3 className="text-xl font-black uppercase tracking-tight font-mono">🚨 ZONE PROTOCOL</h3>
+              </div>
+
+              <div className="space-y-4 font-mono text-sm leading-relaxed mb-6 text-left">
+                <div className="bg-white border-2 border-black p-3 shadow-neo-sm">
+                  <p className="font-black text-xs text-pink-600 uppercase mb-1">⚡ Away Auto-Status</p>
+                  <p className="font-bold">
+                    When you minimize the browser or switch tabs, your username will auto-update to indicate you are <span className="underline">Away</span> (e.g. <span className="italic">JollyBear (Away)</span>). This alerts others that you are inactive.
+                  </p>
+                </div>
+
+                <div className="bg-white border-2 border-black p-3 shadow-neo-sm">
+                  <p className="font-black text-xs text-purple-600 uppercase mb-1">⏳ Real-Time Only</p>
+                  <p className="font-bold">
+                    This is an ephemeral real-time chat. Any messages sent while you are not active in this browser tab will not appear in your window. Once you're gone, past messages stay gone!
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={confirmJoinRoom}
+                className="w-full bg-black text-white hover:bg-gray-800 font-bold border-4 border-black py-3 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all text-sm uppercase tracking-wider"
+              >
+                I Understand, Enter Zone
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -638,11 +722,39 @@ function App() {
           </div>
           <div className="overflow-hidden">
             <h2 className="font-black text-lg md:text-xl leading-none truncate max-w-[150px] md:max-w-none">{room}</h2>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative">
               <span className="font-mono text-[10px] md:text-xs text-green-600 font-bold">● LIVE</span>
-              <span className="font-mono text-[10px] md:text-xs text-gray-600 font-bold">
+              <button 
+                onClick={() => setShowUsersList(!showUsersList)}
+                className="font-mono text-[10px] md:text-xs text-gray-600 font-bold border-2 border-black px-2 py-0.5 hover:bg-yellow-100 flex items-center gap-1 shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none bg-white text-black"
+                title="View Online Users"
+              >
                 👥 {onlineCount}
-              </span>
+              </button>
+              
+              {showUsersList && (
+                <div className="absolute left-0 top-full mt-2 w-48 bg-white border-2 border-black shadow-neo z-50 max-h-48 overflow-y-auto font-mono text-xs text-black">
+                  <div className="bg-black text-white px-2 py-1 font-bold text-center border-b-2 border-black">
+                    ONLINE USERS
+                  </div>
+                  <div className="divide-y-2 divide-black">
+                    {roomUsers.map((userNickname, idx) => {
+                      const isUserAway = userNickname.endsWith(" (Away)");
+                      const displayName = isUserAway ? userNickname.replace(" (Away)", "") : userNickname;
+                      return (
+                        <div key={idx} className="p-2 flex items-center justify-between font-bold">
+                          <span className="truncate flex-1 pr-1">@{displayName}</span>
+                          {isUserAway ? (
+                            <span className="text-gray-400 text-[10px] shrink-0 font-normal">Away 💤</span>
+                          ) : (
+                            <span className="text-green-600 text-[10px] shrink-0">Active ●</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

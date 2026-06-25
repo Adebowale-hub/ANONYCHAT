@@ -215,6 +215,29 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("user_typing", { username });
   });
 
+  // 5. UPDATE STATUS (Visibility change)
+  socket.on("update_status", ({ roomId, status }) => {
+    if (!roomId || !roomUsers[roomId]) return;
+
+    const userSession = roomUsers[roomId].find(u => u.socketId === socket.id);
+    if (!userSession) return;
+
+    const baseUsername = socket.roomUsernames[roomId];
+    if (!baseUsername) return;
+
+    if (status === "away") {
+      if (!userSession.username.endsWith(" (Away)")) {
+        userSession.username = `${baseUsername} (Away)`;
+      }
+    } else if (status === "active") {
+      userSession.username = baseUsername;
+    }
+
+    // Send updated user list to all clients in room
+    const userList = roomUsers[roomId].map(u => u.username);
+    io.to(roomId).emit("room_users_update", userList);
+  });
+
   // Event: Send Message (with threading and Gemini support)
   socket.on("send_message", async (data) => {
     // data expected format: { roomId, text, replyTo (optional) }
