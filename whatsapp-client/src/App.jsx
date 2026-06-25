@@ -403,9 +403,13 @@ function App() {
 
       // Clear the previous stored username only if we are manually joining a different room/zone
       const savedRoom = localStorage.getItem('active_room');
+      let savedUsername = undefined;
+      
       if (savedRoom !== sanitized) {
         localStorage.removeItem('active_room_username');
         setUsername("");
+      } else {
+        savedUsername = localStorage.getItem('active_room_username') || username;
       }
 
       localStorage.setItem('active_room', sanitized);
@@ -414,8 +418,6 @@ function App() {
       } else {
         localStorage.removeItem('active_room_password');
       }
-
-      const savedUsername = localStorage.getItem('active_room_username') || username;
 
       socket.emit("join_room", { 
         roomId: sanitized, 
