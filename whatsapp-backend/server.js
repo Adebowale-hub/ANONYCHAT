@@ -56,6 +56,11 @@ io.use(async (socket, next) => {
   }
 });
 
+const cleanStatusFromUsername = (username) => {
+  if (!username) return username;
+  return username.replace(/\s*\(Away\)\s*$/, '');
+};
+
 // Track users in each room for @mentions: { roomId: [{ socketId, username, email }] }
 const roomUsers = {};
 // Store room passwords (in production, use database with bcrypt)
@@ -102,17 +107,17 @@ io.on("connection", (socket) => {
 
     // Check if a session already exists for this email in this room
     const existingUserSession = roomUsers[roomId].find(u => u.email === socket.user.email);
-    let newUsername = requestedUsername;
+    let newUsername = cleanStatusFromUsername(requestedUsername);
 
     if (existingUserSession) {
       // Reuse their current username
-      newUsername = existingUserSession.username;
+      newUsername = cleanStatusFromUsername(existingUserSession.username);
       // Remove their old socket ID session to avoid duplicates
       roomUsers[roomId] = roomUsers[roomId].filter(u => u.email !== socket.user.email);
       console.log(`Reusing username ${newUsername} for user ${socket.user.email} due to existing session`);
     } else {
       // If a username was requested, check if it's already taken by another email
-      const isTaken = roomUsers[roomId].some(u => u.username === requestedUsername);
+      const isTaken = roomUsers[roomId].some(u => cleanStatusFromUsername(u.username) === newUsername);
       if (!newUsername || isTaken) {
         newUsername = generateRandomUsername();
       }
@@ -186,26 +191,33 @@ io.on("connection", (socket) => {
 
     // If they were in a room, tell that room they left
     if (socket.activeRoom) {
-      const username = socket.roomUsernames[socket.activeRoom] || "Anonymous";
+      const roomId = socket.activeRoom;
+      const username = cleanStatusFromUsername(socket.roomUsernames[roomId] || "Anonymous");
+
+      // Check if they already have another active session in this room (reconnected)
+      const hasReconnected = roomUsers[roomId] && roomUsers[roomId].some(u => u.email === socket.user.email && u.socketId !== socket.id);
 
       // Remove from room tracking
-      if (roomUsers[socket.activeRoom]) {
-        roomUsers[socket.activeRoom] = roomUsers[socket.activeRoom].filter(u => u.socketId !== socket.id);
+      if (roomUsers[roomId]) {
+        roomUsers[roomId] = roomUsers[roomId].filter(u => u.socketId !== socket.id);
 
         // Send updated user list
-        const userList = roomUsers[socket.activeRoom].map(u => u.username);
-        io.to(socket.activeRoom).emit("room_users_update", userList);
+        const userList = roomUsers[roomId].map(u => u.username);
+        io.to(roomId).emit("room_users_update", userList);
       }
 
-      const systemMessage = {
-        text: `${username} DISCONNECTED`,
-        senderEmail: "system",
-        roomId: socket.activeRoom,
-        createdAt: new Date().toISOString(),
-        isSystem: true,
-        id: Date.now()
-      };
-      io.to(socket.activeRoom).emit("receive_message", systemMessage);
+      // Announce disconnect ONLY if they haven't reconnected on a new socket
+      if (!hasReconnected) {
+        const systemMessage = {
+          text: `${username} DISCONNECTED`,
+          senderEmail: "system",
+          roomId: roomId,
+          createdAt: new Date().toISOString(),
+          isSystem: true,
+          id: Date.now()
+        };
+        io.to(roomId).emit("receive_message", systemMessage);
+      }
     }
   });
 
@@ -222,7 +234,7 @@ io.on("connection", (socket) => {
     const userSession = roomUsers[roomId].find(u => u.socketId === socket.id);
     if (!userSession) return;
 
-    const baseUsername = socket.roomUsernames[roomId];
+    const baseUsername = cleanStatusFromUsername(socket.roomUsernames[roomId]);
     if (!baseUsername) return;
 
     if (status === "away") {
@@ -246,7 +258,7 @@ io.on("connection", (socket) => {
     if (!roomId || !text) return;
 
     // A. Construct the message object
-    const username = socket.roomUsernames[roomId] || "Anonymous";
+    const username = cleanStatusFromUsername(socket.roomUsernames[roomId] || "Anonymous");
 
     const messageData = {
       text: text,

@@ -393,9 +393,12 @@ function App() {
       setIsJoining(true);
       setRoom(sanitized); // Update with sanitized version
 
-      // Clear the previous stored username because we are manually joining a new room/zone
-      localStorage.removeItem('active_room_username');
-      setUsername("");
+      // Clear the previous stored username only if we are manually joining a different room/zone
+      const savedRoom = localStorage.getItem('active_room');
+      if (savedRoom !== sanitized) {
+        localStorage.removeItem('active_room_username');
+        setUsername("");
+      }
 
       localStorage.setItem('active_room', sanitized);
       if (roomPassword) {
@@ -404,9 +407,12 @@ function App() {
         localStorage.removeItem('active_room_password');
       }
 
+      const savedUsername = localStorage.getItem('active_room_username') || username;
+
       socket.emit("join_room", { 
         roomId: sanitized, 
-        password: roomPassword || undefined 
+        password: roomPassword || undefined,
+        username: savedUsername || undefined
       });
       setShowProtocolModal(false);
     }
