@@ -455,9 +455,9 @@ function App() {
   };
 
   const copyRoomLink = () => {
-    const link = `${window.location.origin}/?room=${room}`;
-    navigator.clipboard.writeText(link);
-    alert("Room link copied!");
+    const textToCopy = `JOIN MY ANONYMOUS ROOM ON ANONYCHAT\nWEBSITE: ${window.location.host}\nROOM: ${room}`;
+    navigator.clipboard.writeText(textToCopy);
+    alert("Room invite copied!");
   };
 
   const sendMessage = async () => {
