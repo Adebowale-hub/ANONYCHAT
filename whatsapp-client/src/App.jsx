@@ -6,6 +6,7 @@ import { Send, LogOut, MessageSquare, Zap, Reply, X, AtSign } from 'lucide-react
 import EmojiPicker from 'emoji-picker-react';
 import Blog from './Blog';
 import About from './About';
+import PrivacyPolicy from './PrivacyPolicy';
 import GoogleAd from './GoogleAd';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
@@ -581,6 +582,9 @@ function App() {
   if (currentPath === '/about') {
     return <About navigate={navigate} />;
   }
+  if (currentPath === '/privacy') {
+    return <PrivacyPolicy navigate={navigate} />;
+  }
 
   // 1. LOGIN SCREEN (Mobile Optimized)
   if (!user) {
@@ -589,6 +593,7 @@ function App() {
         {/* Hidden SEO/Navigation links as requested */}
         <a href="/blog" onClick={(e) => { e.preventDefault(); navigate('/blog'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">Blog</a>
         <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">About</a>
+        <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">Privacy Policy</a>
         <div className="bg-white border-4 border-black shadow-neo w-full max-w-[calc(100vw-2rem)] sm:max-w-md p-6 md:p-8 text-center">
           <div className="bg-black border-2 border-black w-20 h-20 md:w-24 md:h-24 mx-auto mb-6 flex items-center justify-center shadow-neo-sm overflow-hidden">
             <img src="/logo.jpg" alt="ANONYCHAT Logo" className="w-full h-full object-cover" />
@@ -618,6 +623,15 @@ function App() {
               onAction={handleAdAction}
             />
           </div>
+
+          {/* Footer links for AdSense Compliance */}
+          <div className="mt-6 flex justify-center gap-3 text-xs font-mono font-bold text-gray-500 border-t-2 border-black pt-4">
+            <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }} className="hover:underline hover:text-black">About</a>
+            <span>•</span>
+            <a href="/blog" onClick={(e) => { e.preventDefault(); navigate('/blog'); }} className="hover:underline hover:text-black">Blog</a>
+            <span>•</span>
+            <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="hover:underline hover:text-black">Privacy</a>
+          </div>
         </div>
       </div>
     );
@@ -630,6 +644,7 @@ function App() {
         {/* Hidden SEO/Navigation links as requested */}
         <a href="/blog" onClick={(e) => { e.preventDefault(); navigate('/blog'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">Blog</a>
         <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">About</a>
+        <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} style={{ display: 'none' }} className="hidden" aria-hidden="true">Privacy Policy</a>
         <div className="bg-white border-4 border-black shadow-neo w-full max-w-[calc(100vw-2rem)] sm:max-w-md p-6 md:p-8">
           <div className="flex justify-between items-center mb-6 md:mb-8">
             <h2 className="text-xl md:text-2xl font-black uppercase">Select Zone</h2>
@@ -693,6 +708,15 @@ function App() {
               isDarkTheme={false}
               onAction={handleAdAction}
             />
+          </div>
+
+          {/* Footer links for AdSense Compliance */}
+          <div className="mt-6 flex justify-center gap-3 text-xs font-mono font-bold text-gray-500 border-t-2 border-black pt-4">
+            <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }} className="hover:underline hover:text-black">About</a>
+            <span>•</span>
+            <a href="/blog" onClick={(e) => { e.preventDefault(); navigate('/blog'); }} className="hover:underline hover:text-black">Blog</a>
+            <span>•</span>
+            <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); }} className="hover:underline hover:text-black">Privacy</a>
           </div>
         </div>
 

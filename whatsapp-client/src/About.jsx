@@ -106,7 +106,7 @@ export default function About({ navigate }) {
             <Users className="w-12 h-12 mx-auto mb-4 text-purple-700" />
             <h2 className="text-2xl font-black uppercase mb-2">THE INTEGRITY PLEDGE</h2>
             <p className="font-mono text-sm font-bold text-purple-900 max-w-xl mx-auto">
-              We do not track IP addresses. We do not sell user metadata. We do not display advertisement trackers. We are open source, developer-focused, and privacy-first.
+              We do not track IP addresses. We do not sell user metadata. We use privacy-conscious advertising partners like Google AdSense to sustain our server infrastructure. We are open source, developer-focused, and privacy-first.
             </p>
           </section>
         </div>
