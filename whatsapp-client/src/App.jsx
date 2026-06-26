@@ -577,7 +577,7 @@ function App() {
 
   // Blog and About routes
   if (currentPath === '/blog') {
-    return <Blog navigate={navigate} />;
+    return <Blog navigate={navigate} user={user} />;
   }
   if (currentPath === '/about') {
     return <About navigate={navigate} />;

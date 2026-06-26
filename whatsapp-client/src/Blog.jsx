@@ -1,147 +1,190 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MessageSquare, Calendar, User, Tag, Heart, Send } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Calendar, User, Tag, Heart, Send, Plus, X } from 'lucide-react';
+import { auth } from './firebase';
 
-const BLOG_POSTS = [
-  {
-    id: 1,
-    title: "The Art of Anonymity: Why Privacy Matters in 2026",
-    excerpt: "In a world of constant surveillance and data harvesting, anonymous communication isn't just for rebels—it's a fundamental digital right.",
-    content: `Privacy is not about having something to hide; it's about having something to protect. As we navigate the complex web of 2026, our digital footprints have become commodity data traded in backrooms. Every click, mention, and message is cataloged.
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
 
-Here at ANONYCHAT, we believe in a different future. A future where conversations are like real life: whispered, ephemeral, and unmonitored. 
-
-### The Illusion of Free Services
-Most messaging apps market themselves as 'free' and 'secure.' Yet, they require your phone number, sync your contacts, and track your location. When a service is free, your metadata is often the product. Who you talk to, when you talk, and for how long can reveal more about you than the content of the messages themselves.
-
-### Why Ephemerality Matters
-By not storing messages indefinitely and routing them through anonymous room keys, we return chat to its natural state. Real conversation isn't written in stone. It flows, it happens, and it disappears. 
-
-### How to Protect Yourself Online:
-1. **Never use your real name or standard handle** on anonymous platforms.
-2. **Avoid sharing personally identifiable details** (PII) even in casual conversation.
-3. **Use a VPN or Tor browser** to mask your underlying IP address.
-4. **Be skeptical** of links or attachments shared in open channels.`,
-    author: "AlphaCode",
-    date: "June 18, 2026",
-    category: "Security",
-    color: "bg-yellow-300",
-    tags: ["Privacy", "Security", "Anonymity"]
-  },
-  {
-    id: 2,
-    title: "Behind the Scenes: How We Built ANONYCHAT with WebSockets",
-    excerpt: "Deep dive into our technology stack, real-time message propagation, and why we chose Socket.io for immediate delivery.",
-    content: `Building a real-time chat application that feels instant requires a robust transport layer. Traditional HTTP polling is slow, heavy, and wasteful. For ANONYCHAT, we chose WebSockets via Socket.io to achieve sub-10ms latency.
-
-### The WebSocket Protocol
-Unlike standard HTTP where the client must request data, WebSockets establish a persistent, bi-directional TCP connection. Once opened, data can flow freely from client to server and server to client without the overhead of HTTP headers.
-
-\`\`\`javascript
-// Client-side socket initialization
-const socket = io(BACKEND_URL, {
-  auth: { token: idToken }
-});
-
-// Emitting a message
-socket.emit("send_message", { roomId, text });
-\`\`\`
-
-### State Management & Ephemerality
-Our backend is designed to act as a router rather than a vault. When a message is sent:
-1. It is broadcasted to all users in the socket room.
-2. If the user mentions 'gemini', it triggers the AI agent.
-3. It is not saved in a database, ensuring complete privacy.
-
-### Scaling Real-Time Connections
-As traffic grows, single-server socket architectures hit physical memory and connection limits. We resolve this by utilizing Redis Adapter to broadcast socket events across multiple server instances. This ensures that no matter which server a user is connected to, they receive messages in real time.`,
-    author: "DevDynamo",
-    date: "June 12, 2026",
-    category: "Tech",
-    color: "bg-cyan-300",
-    tags: ["WebSockets", "React", "NodeJS"]
-  },
-  {
-    id: 3,
-    title: "Say Hello to Gemini: Integrating AI into Anonymous Chat Rooms",
-    excerpt: "How we embedded Google's advanced Gemini model into live rooms to act as an assistant, moderator, and conversationalist.",
-    content: `One of the most exciting additions to ANONYCHAT is the direct integration of Gemini. In any room, typing a message containing '@gemini' prompts the AI to respond in real time.
-
-### The Architecture of the AI Hook
-When the socket server receives a message, it parses the text for mentions. If a mention matches '@gemini', the server doesn't just broadcast it; it also forwards the message context to the Gemini API.
-
-To make the integration feel natural, we implement a 'gemini_typing' socket event. This informs everyone in the room that the AI is processing its reply, keeping the chat experience consistent with human interactions.
-
-### Prompt Engineering for Group Chats
-In a group chat, context is key. We feed Gemini a specialized system instruction:
-- **Act as a friendly, sharp-witted participant.**
-- **Keep answers concise (under 3 sentences).**
-- **Understand that multiple users are talking at once.**
-
-### Ethical AI in Anonymous Spaces
-Because users are anonymous, moderation is challenging. We leverage Gemini's built-in safety filters to block harmful queries while maintaining a free, open-ended discussion style. It's a fine line between censorship and safety, and Gemini helps us walk it.`,
-    author: "AIPioneer",
-    date: "June 05, 2026",
-    category: "AI",
-    color: "bg-pink-300",
-    tags: ["Gemini", "AI", "LLM"]
-  }
-];
-
-export default function Blog({ navigate }) {
+export default function Blog({ navigate, user }) {
+  const [blogs, setBlogs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [likes, setLikes] = useState({});
-  const [comments, setComments] = useState({});
   const [newComment, setNewComment] = useState({ name: "", text: "" });
 
-  // Load likes and comments from localStorage on mount
-  useEffect(() => {
-    const savedLikes = localStorage.getItem('anony_blog_likes');
-    const savedComments = localStorage.getItem('anony_blog_comments');
-    if (savedLikes) setLikes(JSON.parse(savedLikes));
-    if (savedComments) setComments(JSON.parse(savedComments));
-  }, []);
+  // Blog creation states
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newPost, setNewPost] = useState({ title: "", excerpt: "", content: "", category: "General", tags: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLike = (postId, e) => {
-    e.stopPropagation();
-    const updated = {
-      ...likes,
-      [postId]: (likes[postId] || 0) + 1
-    };
-    setLikes(updated);
-    localStorage.setItem('anony_blog_likes', JSON.stringify(updated));
+  // Fetch blogs from backend on mount
+  const fetchBlogs = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${BACKEND_URL}/api/blogs`);
+      if (res.ok) {
+        const data = await res.json();
+        setBlogs(data);
+      } else {
+        console.error("Failed to fetch blogs from API");
+      }
+    } catch (err) {
+      console.error("Error fetching blogs:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCommentSubmit = (postId, e) => {
+  useEffect(() => {
+    fetchBlogs();
+    const savedLikes = localStorage.getItem('anony_blog_likes');
+    if (savedLikes) setLikes(JSON.parse(savedLikes));
+  }, []);
+
+  const handleLike = async (postId, e) => {
+    e.stopPropagation();
+    if (likes[postId]) {
+      alert("You've already liked this post!");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/blogs/${postId}/like`, {
+        method: "POST"
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Update list in state
+        setBlogs(prev => prev.map(b => b.id === postId ? { ...b, likes: data.likes } : b));
+        
+        // Update local likes tracker
+        const updatedLikes = { ...likes, [postId]: true };
+        setLikes(updatedLikes);
+        localStorage.setItem('anony_blog_likes', JSON.stringify(updatedLikes));
+
+        // If selectedPost is currently open, update its likes too
+        if (selectedPost && selectedPost.id === postId) {
+          setSelectedPost(prev => ({ ...prev, likes: data.likes }));
+        }
+      }
+    } catch (err) {
+      console.error("Error liking post:", err);
+    }
+  };
+
+  const handleCommentSubmit = async (postId, e) => {
     e.preventDefault();
     if (!newComment.name.trim() || !newComment.text.trim()) return;
 
-    const postComments = comments[postId] || [];
-    const updatedComments = [
-      ...postComments,
-      {
-        id: Date.now(),
-        name: newComment.name.trim(),
-        text: newComment.text.trim(),
-        date: new Date().toLocaleDateString()
-      }
-    ];
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/blogs/${postId}/comments`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: newComment.name.trim(),
+          text: newComment.text.trim()
+        })
+      });
 
-    const updated = {
-      ...comments,
-      [postId]: updatedComments
-    };
-    setComments(updated);
-    localStorage.setItem('anony_blog_comments', JSON.stringify(updated));
-    setNewComment({ name: "", text: "" });
+      if (res.ok) {
+        const addedComment = await res.json();
+        
+        // Update state
+        setBlogs(prev => prev.map(b => {
+          if (b.id === postId) {
+            return {
+              ...b,
+              comments: [...(b.comments || []), addedComment]
+            };
+          }
+          return b;
+        }));
+
+        // Update selected post view
+        if (selectedPost && selectedPost.id === postId) {
+          setSelectedPost(prev => ({
+            ...prev,
+            comments: [...(prev.comments || []), addedComment]
+          }));
+        }
+
+        setNewComment({ name: "", text: "" });
+      }
+    } catch (err) {
+      console.error("Error adding comment:", err);
+    }
+  };
+
+  const handlePublishPost = async (e) => {
+    e.preventDefault();
+    if (!newPost.title.trim() || !newPost.content.trim()) {
+      alert("Title and Content are required!");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        alert("You must be logged in to publish a blog post.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const tagsArray = newPost.tags
+        .split(",")
+        .map(t => t.trim())
+        .filter(t => t.length > 0);
+
+      // Pick a random background color class for the neo-brutalist theme card
+      const colors = ["bg-yellow-300", "bg-cyan-300", "bg-pink-300", "bg-green-300", "bg-purple-300"];
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+      const res = await fetch(`${BACKEND_URL}/api/blogs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: newPost.title,
+          excerpt: newPost.excerpt,
+          content: newPost.content,
+          category: newPost.category,
+          color: randomColor,
+          tags: tagsArray
+        })
+      });
+
+      if (res.ok) {
+        const createdBlog = await res.json();
+        // Prepend new blog in state
+        setBlogs(prev => [createdBlog, ...prev]);
+        
+        // Reset form and close modal
+        setNewPost({ title: "", excerpt: "", content: "", category: "General", tags: "" });
+        setShowCreateModal(false);
+        alert("Blog post published successfully!");
+      } else {
+        const errData = await res.json();
+        alert(`Error: ${errData.error || "Failed to publish blog post"}`);
+      }
+    } catch (err) {
+      console.error("Error publishing blog:", err);
+      alert("An error occurred while publishing.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const filteredPosts = selectedCategory === "All"
-    ? BLOG_POSTS
-    : BLOG_POSTS.filter(post => post.category === selectedCategory);
+    ? blogs
+    : blogs.filter(post => post.category?.toLowerCase() === selectedCategory.toLowerCase());
 
   return (
-    <div className="min-h-screen w-full bg-gray-100 p-4 md:p-8 font-sans text-black">
+    <div className="min-h-screen w-full bg-gray-100 p-4 md:p-8 font-sans text-black text-left">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <header className="bg-white border-4 border-black p-6 shadow-neo mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -178,7 +221,7 @@ export default function Blog({ navigate }) {
               <span className={`border-2 border-black px-3 py-1 text-xs font-bold font-mono uppercase ${selectedPost.color}`}>
                 {selectedPost.category}
               </span>
-              {selectedPost.tags.map((tag, i) => (
+              {(selectedPost.tags || []).map((tag, i) => (
                 <span key={i} className="bg-gray-200 border-2 border-black px-2 py-1 text-xs font-mono">
                   #{tag}
                 </span>
@@ -203,7 +246,7 @@ export default function Blog({ navigate }) {
                 className="flex items-center gap-1 hover:text-red-500 font-bold ml-auto transition-colors"
               >
                 <Heart className={`w-4 h-4 ${likes[selectedPost.id] ? 'fill-red-500 text-red-500' : ''}`} />
-                <span>{likes[selectedPost.id] || 0} LIKES</span>
+                <span>{selectedPost.likes || 0} LIKES</span>
               </button>
             </div>
 
@@ -216,15 +259,15 @@ export default function Blog({ navigate }) {
             <section className="mt-8">
               <h3 className="text-2xl font-black uppercase mb-6 flex items-center gap-2">
                 <MessageSquare className="w-6 h-6" />
-                COMMENTS ({(comments[selectedPost.id] || []).length})
+                COMMENTS ({(selectedPost.comments || []).length})
               </h3>
 
               {/* Comment list */}
               <div className="space-y-4 mb-8">
-                {(comments[selectedPost.id] || []).length === 0 ? (
+                {(selectedPost.comments || []).length === 0 ? (
                   <p className="font-mono text-gray-500 text-sm">No comments yet. Write one below!</p>
                 ) : (
-                  (comments[selectedPost.id] || []).map((c) => (
+                  (selectedPost.comments || []).map((c) => (
                     <div key={c.id} className="bg-gray-50 border-2 border-black p-4 shadow-neo-sm">
                       <div className="flex justify-between items-center mb-2 border-b border-black pb-1">
                         <span className="font-bold font-mono text-sm text-pink-600">@{c.name}</span>
@@ -277,63 +320,181 @@ export default function Blog({ navigate }) {
         ) : (
           /* Blog Grid Listing */
           <div>
-            {/* Category Filters */}
-            <div className="flex flex-wrap gap-2 mb-6">
-              {["All", "Security", "Tech", "AI"].map((cat) => (
+            {/* Filters and Create Action */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              {/* Category Filters */}
+              <div className="flex flex-wrap gap-2">
+                {["All", "Security", "Tech", "AI", "General"].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`border-2 border-black px-4 py-2 font-bold transition-all shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none ${
+                      selectedCategory === cat
+                        ? "bg-black text-white"
+                        : "bg-white hover:bg-gray-100 text-black"
+                    }`}
+                  >
+                    {cat.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+
+              {/* Create Post Button (only if user is authenticated) */}
+              {user && (
                 <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`border-2 border-black px-4 py-2 font-bold transition-all shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none ${
-                    selectedCategory === cat
-                      ? "bg-black text-white"
-                      : "bg-white hover:bg-gray-100 text-black"
-                  }`}
+                  onClick={() => setShowCreateModal(true)}
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-pink-500 hover:bg-pink-400 text-white font-bold border-4 border-black px-6 py-3 shadow-neo active:translate-x-[3px] active:translate-y-[3px] active:shadow-none transition-all uppercase"
                 >
-                  {cat.toUpperCase()}
+                  <Plus className="w-5 h-5" />
+                  CREATE POST
                 </button>
-              ))}
+              )}
             </div>
 
-            {/* Posts Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {filteredPosts.map((post) => (
-                <div
-                  key={post.id}
-                  onClick={() => setSelectedPost(post)}
-                  className="bg-white border-4 border-black p-6 shadow-neo hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex justify-between items-center mb-4">
-                      <span className={`border-2 border-black px-2 py-0.5 text-xs font-mono font-bold uppercase ${post.color}`}>
-                        {post.category}
-                      </span>
-                      <span className="font-mono text-xs text-gray-500">{post.date}</span>
+            {loading ? (
+              <div className="bg-white border-4 border-black p-12 text-center shadow-neo">
+                <p className="font-mono font-bold animate-pulse text-lg">LOADING ARTICLE DATABASE...</p>
+              </div>
+            ) : filteredPosts.length === 0 ? (
+              <div className="bg-white border-4 border-black p-12 text-center shadow-neo">
+                <p className="font-mono font-bold text-lg">NO BLOG POSTS FOUND IN THIS CATEGORY.</p>
+              </div>
+            ) : (
+              /* Posts Grid */
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {filteredPosts.map((post) => (
+                  <div
+                    key={post.id}
+                    onClick={() => setSelectedPost(post)}
+                    className="bg-white border-4 border-black p-6 shadow-neo hover:translate-x-[-4px] hover:translate-y-[-4px] hover:shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex justify-between items-center mb-4">
+                        <span className={`border-2 border-black px-2 py-0.5 text-xs font-mono font-bold uppercase ${post.color}`}>
+                          {post.category}
+                        </span>
+                        <span className="font-mono text-xs text-gray-500">{post.date}</span>
+                      </div>
+                      <h3 className="text-xl md:text-2xl font-black mb-3 uppercase leading-tight hover:underline">
+                        {post.title}
+                      </h3>
+                      <p className="font-medium text-gray-700 text-sm md:text-base mb-6 leading-relaxed">
+                        {post.excerpt}
+                      </p>
                     </div>
-                    <h3 className="text-xl md:text-2xl font-black mb-3 uppercase leading-tight hover:underline">
-                      {post.title}
-                    </h3>
-                    <p className="font-medium text-gray-700 text-sm md:text-base mb-6 leading-relaxed">
-                      {post.excerpt}
-                    </p>
+                    <div className="flex justify-between items-center border-t-2 border-black pt-4 mt-auto">
+                      <span className="font-mono text-xs font-bold text-gray-600">BY @{post.author}</span>
+                      <div className="flex items-center gap-4">
+                        <button
+                          onClick={(e) => handleLike(post.id, e)}
+                          className="flex items-center gap-1 hover:text-red-500 font-bold font-mono text-xs transition-colors"
+                        >
+                          <Heart className={`w-4 h-4 ${likes[post.id] ? 'fill-red-500 text-red-500' : ''}`} />
+                          <span>{post.likes || 0}</span>
+                        </button>
+                        <span className="flex items-center gap-1 font-mono text-xs text-gray-600">
+                          <MessageSquare className="w-4 h-4" />
+                          <span>{(post.comments || []).length}</span>
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center border-t-2 border-black pt-4 mt-auto">
-                    <span className="font-mono text-xs font-bold text-gray-600">BY @{post.author}</span>
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={(e) => handleLike(post.id, e)}
-                        className="flex items-center gap-1 hover:text-red-500 font-bold font-mono text-xs transition-colors"
-                      >
-                        <Heart className={`w-4 h-4 ${likes[post.id] ? 'fill-red-500 text-red-500' : ''}`} />
-                        <span>{likes[post.id] || 0}</span>
-                      </button>
-                      <span className="flex items-center gap-1 font-mono text-xs text-gray-600">
-                        <MessageSquare className="w-4 h-4" />
-                        <span>{(comments[post.id] || []).length}</span>
-                      </span>
-                    </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Create Post Modal Overlay */}
+        {showCreateModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white border-4 border-black p-6 max-w-2xl w-full shadow-neo text-black relative my-8">
+              <button 
+                onClick={() => setShowCreateModal(false)}
+                className="absolute top-4 right-4 border-2 border-black p-1 hover:bg-red-400 transition-colors shadow-neo-sm active:translate-x-[2px] active:translate-y-[2px] active:shadow-none bg-white"
+              >
+                <X size={16} />
+              </button>
+              
+              <div className="flex items-center gap-2 mb-6">
+                <div className="bg-pink-500 text-white border-2 border-black p-1">
+                  <Plus className="stroke-[2.5]" size={20} />
+                </div>
+                <h3 className="text-2xl font-black uppercase tracking-tight">Write New Blog Post</h3>
+              </div>
+
+              <form onSubmit={handlePublishPost} className="space-y-4">
+                <div>
+                  <label className="block font-mono text-xs font-bold mb-1 uppercase">Post Title</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Enter a catchy title..."
+                    value={newPost.title}
+                    onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
+                    className="w-full border-4 border-black p-3 font-mono text-sm focus:outline-none focus:bg-yellow-100"
+                    maxLength={100}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-mono text-xs font-bold mb-1 uppercase">Category</label>
+                    <select
+                      value={newPost.category}
+                      onChange={(e) => setNewPost({ ...newPost, category: e.target.value })}
+                      className="w-full border-4 border-black p-3 font-mono text-sm bg-white focus:outline-none focus:bg-yellow-100"
+                    >
+                      <option value="General">General</option>
+                      <option value="Security">Security</option>
+                      <option value="Tech">Tech</option>
+                      <option value="AI">AI</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-mono text-xs font-bold mb-1 uppercase">Tags (comma-separated)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. privacy, security, nodes"
+                      value={newPost.tags}
+                      onChange={(e) => setNewPost({ ...newPost, tags: e.target.value })}
+                      className="w-full border-4 border-black p-3 font-mono text-sm focus:outline-none focus:bg-yellow-100"
+                    />
                   </div>
                 </div>
-              ))}
+
+                <div>
+                  <label className="block font-mono text-xs font-bold mb-1 uppercase">Short Excerpt</label>
+                  <input
+                    type="text"
+                    placeholder="A brief summary of your post..."
+                    value={newPost.excerpt}
+                    onChange={(e) => setNewPost({ ...newPost, excerpt: e.target.value })}
+                    className="w-full border-4 border-black p-3 font-mono text-sm focus:outline-none focus:bg-yellow-100"
+                    maxLength={180}
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-mono text-xs font-bold mb-1 uppercase">Content</label>
+                  <textarea
+                    required
+                    placeholder="Write your article content here... Markdown styles can be added manually."
+                    value={newPost.content}
+                    onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
+                    className="w-full border-4 border-black p-3 font-mono text-sm focus:outline-none focus:bg-yellow-100 h-64 resize-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-black text-white hover:bg-gray-800 font-bold border-4 border-black py-4 shadow-neo active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all text-sm uppercase tracking-wider disabled:opacity-50"
+                >
+                  {isSubmitting ? "Publishing..." : "Publish Blog Post"}
+                </button>
+              </form>
             </div>
           </div>
         )}
