@@ -11,7 +11,8 @@ const app = express();
 app.use(cors({
   origin: [
     'http://localhost:5173',
-    'https://anonychat-eta.vercel.app'
+    'https://anonychat.fun',
+    'https://www.anonychat.fun'
   ],
   credentials: true
 }));
@@ -24,7 +25,8 @@ const io = new Server(server, {
   cors: {
     origin: [
       'http://localhost:5173',
-      'https://anonychat-eta.vercel.app'
+      'https://anonychat.fun',
+      'https://www.anonychat.fun'
     ],
     methods: ["GET", "POST"],
     credentials: true
