@@ -616,14 +616,6 @@ function App() {
             </p>
           </div>
 
-          {/* Google Ads */}
-          <div className="mt-6 border-t-2 border-black pt-4">
-            <GoogleAd
-              isDarkTheme={false}
-              onAction={handleAdAction}
-            />
-          </div>
-
           {/* Footer links for AdSense Compliance */}
           <div className="mt-6 flex justify-center gap-3 text-xs font-mono font-bold text-gray-500 border-t-2 border-black pt-4">
             <a href="/about" onClick={(e) => { e.preventDefault(); navigate('/about'); }} className="hover:underline hover:text-black">About</a>
@@ -700,14 +692,6 @@ function App() {
             <p className="font-mono text-xs font-bold text-purple-800">
               🤖 AI ASSISTANT COMING SOON
             </p>
-          </div>
-
-          {/* Google Ads */}
-          <div className="mt-6 border-t-2 border-black pt-4">
-            <GoogleAd
-              isDarkTheme={false}
-              onAction={handleAdAction}
-            />
           </div>
 
           {/* Footer links for AdSense Compliance */}
@@ -846,12 +830,6 @@ function App() {
           </button>
         </div>
       </div>
-
-      {/* Google Ads */}
-      <GoogleAd
-        isDarkTheme={isDarkTheme}
-        onAction={handleAdAction}
-      />
 
       {/* Search Bar */}
       <div className={`${isDarkTheme ? 'bg-gray-800' : 'bg-gray-50'} border-b-2 border-black p-2 md:p-3`}>

@@ -1,5 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Shield, Lock, Eye, CheckCircle } from 'lucide-react';
+import GoogleAd from './GoogleAd';
+
 
 export default function PrivacyPolicy({ navigate }) {
   return (
@@ -94,6 +96,11 @@ export default function PrivacyPolicy({ navigate }) {
               By using our service, you consent to our Privacy Policy and agree to our integration of Google AdSense for hosting support.
             </p>
           </section>
+
+          {/* Google Ad for AdSense Compliance */}
+          <div className="mt-8 border-t-4 border-black pt-6">
+            <GoogleAd isDarkTheme={false} />
+          </div>
         </div>
       </div>
     </div>

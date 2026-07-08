@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, MessageSquare, Calendar, User, Tag, Heart, Send, Plus, X } from 'lucide-react';
 import { auth } from './firebase';
+import GoogleAd from './GoogleAd';
+
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
 
@@ -316,6 +318,11 @@ export default function Blog({ navigate, user }) {
                 </div>
               </form>
             </section>
+            
+            {/* Google Ad for AdSense Compliance */}
+            <div className="mt-8 border-t-4 border-black pt-6">
+              <GoogleAd isDarkTheme={false} />
+            </div>
           </article>
         ) : (
           /* Blog Grid Listing */
@@ -402,6 +409,11 @@ export default function Blog({ navigate, user }) {
                 ))}
               </div>
             )}
+
+            {/* Google Ad for AdSense Compliance */}
+            <div className="mt-8 border-t-4 border-black pt-6">
+              <GoogleAd isDarkTheme={false} />
+            </div>
           </div>
         )}
 

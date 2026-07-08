@@ -2,6 +2,10 @@
 
 A modern, real-time anonymous chat application featuring secure authentication, instant messaging, and AI-powered assistance.
 
+## 📖 How it Works
+
+![How to use Anonychat](./whatsapp-client/public/anonychat_user_guide.png)
+
 ## ✨ Features
 
 - 🔐 **Anonymous Chat** - Random usernames per room for privacy

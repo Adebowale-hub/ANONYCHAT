@@ -1,5 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Shield, Zap, Cpu, Users, Lock, Sparkles } from 'lucide-react';
+import GoogleAd from './GoogleAd';
+
 
 export default function About({ navigate }) {
   return (
@@ -109,6 +111,11 @@ export default function About({ navigate }) {
               We do not track IP addresses. We do not sell user metadata. We use privacy-conscious advertising partners like Google AdSense to sustain our server infrastructure. We are open source, developer-focused, and privacy-first.
             </p>
           </section>
+
+          {/* Google Ad for AdSense Compliance */}
+          <div className="mt-8 border-t-4 border-black pt-6">
+            <GoogleAd isDarkTheme={false} />
+          </div>
         </div>
       </div>
     </div>
