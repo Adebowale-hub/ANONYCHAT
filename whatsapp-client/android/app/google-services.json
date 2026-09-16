@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "447569818634",
+    "firebase_url": "https://chat-84eb5-default-rtdb.firebaseio.com",
+    "project_id": "chat-84eb5",
+    "storage_bucket": "chat-84eb5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:447569818634:android:c6630e395a07c7cd691bf3",
+        "android_client_info": {
+          "package_name": "fun.anonychat.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "447569818634-ub30v64kr7to28100dg3jigo1et8bv9r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNcOImdAFH_yZ8pDdpiMsdMP5w5OKo-Ro"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "447569818634-ub30v64kr7to28100dg3jigo1et8bv9r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

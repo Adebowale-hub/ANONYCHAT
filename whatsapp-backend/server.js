@@ -7,13 +7,24 @@ const { generateGeminiResponse } = require('./geminiService');
 const { generateRandomUsername } = require('./usernameGenerator');
 const { admin, db, auth } = require('./firebase-admin'); // Use new module
 
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://anonychat.fun',
+  'https://www.anonychat.fun',
+  'https://localhost',
+  'capacitor://localhost',
+  'http://localhost'
+];
+
 const app = express();
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://anonychat.fun',
-    'https://www.anonychat.fun'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, or native HTTP)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1 || origin.startsWith('capacitor://') || origin.startsWith('http://localhost:')) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Permissive for mobile clients
+  },
   credentials: true
 }));
 app.use(express.json());
@@ -23,11 +34,7 @@ const server = http.createServer(app);
 // 1. Setup Socket.io with CORS
 const io = new Server(server, {
   cors: {
-    origin: [
-      'http://localhost:5173',
-      'https://anonychat.fun',
-      'https://www.anonychat.fun'
-    ],
+    origin: "*",
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -49,7 +56,7 @@ io.use(async (socket, next) => {
     // Attach user data to the socket object for later use
     socket.user = {
       uid: decodedToken.uid,
-      email: decodedToken.email,
+      email: decodedToken.email || `${decodedToken.uid}@anonychat.user`,
     };
 
     next();
@@ -70,10 +77,11 @@ const verifyAuthToken = async (req, res, next) => {
   const token = authHeader.split(" ")[1];
   try {
     const decodedToken = await auth.verifyIdToken(token);
+    const userEmail = decodedToken.email || `${decodedToken.uid}@anonychat.user`;
     req.user = {
       uid: decodedToken.uid,
-      email: decodedToken.email,
-      name: decodedToken.name || decodedToken.email.split("@")[0],
+      email: userEmail,
+      name: decodedToken.name || userEmail.split("@")[0],
     };
     next();
   } catch (err) {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { signInWithPopup } from 'firebase/auth';
-import { auth, googleProvider } from './firebase';
+import { auth, googleProvider, signInAnonymously } from './firebase';
 import { Send, LogOut, MessageSquare, Zap, Reply, X, AtSign } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 import Blog from './Blog';
@@ -98,7 +98,18 @@ function App() {
     window.dispatchEvent(new Event('popstate'));
   };
 
-  const [user, setUser] = useState(null);
+  // Persistent user state: auto-restore session from storage so users only sign in once
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('anonychat_user_session');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [isAuthInitializing, setIsAuthInitializing] = useState(() => {
+    return !localStorage.getItem('anonychat_user_session');
+  });
   const [username, setUsername] = useState(() => localStorage.getItem('active_room_username') || ""); // Store the random username
   const [socket, setSocket] = useState(null);
   const [room, setRoom] = useState(() => localStorage.getItem('active_room') || "");
@@ -237,13 +248,29 @@ function App() {
   useEffect(() => {
     return auth.onAuthStateChanged(async (currentUser) => {
       if (currentUser) {
-        const token = await currentUser.getIdToken();
-        setUser(currentUser);
-        initSocket(token);
+        try {
+          const token = await currentUser.getIdToken();
+          const sessionUser = {
+            uid: currentUser.uid,
+            email: currentUser.email || `${currentUser.uid}@anonychat.user`,
+            displayName: currentUser.displayName || (currentUser.isAnonymous ? "Guest" : "Anonymous"),
+            isAnonymous: currentUser.isAnonymous || false
+          };
+          localStorage.setItem('anonychat_user_session', JSON.stringify(sessionUser));
+          setUser(currentUser);
+          initSocket(token);
+        } catch (err) {
+          console.error("Token fetch error:", err);
+        }
       } else {
-        setUser(null);
-        if (socket) socket.disconnect();
+        // If there was no local cached session, clear user
+        const cached = localStorage.getItem('anonychat_user_session');
+        if (!cached) {
+          setUser(null);
+          if (socket) socket.disconnect();
+        }
       }
+      setIsAuthInitializing(false);
     });
   }, []);
 
@@ -380,8 +407,40 @@ function App() {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error(error);
+      if (error.code === 'auth/disallowed-useragent' || error.code === 'auth/popup-blocked') {
+        alert("Google popup sign-in is restricted in this mobile view. Please use 'CONTINUE AS GUEST' for instant 1-tap entry!");
+      } else {
+        alert("Sign in note: " + (error.message || "Failed to sign in."));
+      }
     } finally {
       setIsLogging(false);
+    }
+  };
+
+  const handleAnonymousLogin = async () => {
+    setIsLogging(true);
+    try {
+      await signInAnonymously(auth);
+    } catch (error) {
+      console.error("Anonymous sign in failed:", error);
+      alert("Failed to sign in as guest: " + error.message);
+    } finally {
+      setIsLogging(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      localStorage.removeItem('anonychat_user_session');
+      localStorage.removeItem('active_room');
+      localStorage.removeItem('active_room_password');
+      localStorage.removeItem('active_room_username');
+      if (socket) socket.disconnect();
+      await auth.signOut();
+      setUser(null);
+      setIsInRoom(false);
+    } catch (err) {
+      console.error("Logout error:", err);
     }
   };
 
@@ -586,7 +645,25 @@ function App() {
     return <PrivacyPolicy navigate={navigate} />;
   }
 
-  // 1. LOGIN SCREEN (Mobile Optimized)
+  // 0. AUTH INITIALIZING / SPLASH SCREEN (Prevents flashing login screen)
+  if (isAuthInitializing && !user) {
+    return (
+      <div className="h-[100dvh] w-full flex items-center justify-center p-4 bg-gray-100">
+        <div className="bg-white border-4 border-black shadow-neo p-8 text-center max-w-xs w-full">
+          <div className="bg-black border-2 border-black w-20 h-20 mx-auto mb-4 flex items-center justify-center shadow-neo-sm overflow-hidden">
+            <img src="/logo.jpg" alt="ANONYCHAT Logo" className="w-full h-full object-cover" />
+          </div>
+          <h1 className="text-2xl font-black mb-1 uppercase tracking-tight">ANONYCHAT</h1>
+          <p className="font-mono text-xs text-gray-600 font-bold mb-4">CONNECTING...</p>
+          <div className="w-full bg-gray-200 h-3 border-2 border-black overflow-hidden relative">
+            <div className="bg-pink-500 h-full w-2/3 animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 1. LOGIN SCREEN (Mobile Optimized - Only shown when user is not logged in)
   if (!user) {
     return (
       <div className="h-[100dvh] w-full flex items-center justify-center p-4 bg-gray-100">
@@ -604,15 +681,24 @@ function App() {
           <button
             onClick={handleLogin}
             disabled={isLogging}
-            className="w-full bg-pink-500 hover:bg-pink-400 text-white font-bold border-4 border-black py-3 md:py-4 px-6 shadow-neo active:shadow-none active:translate-x-[5px] active:translate-y-[5px] transition-all flex items-center justify-center gap-3 text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-pink-500 hover:bg-pink-400 text-white font-bold border-4 border-black py-3 md:py-4 px-6 shadow-neo active:shadow-none active:translate-x-[5px] active:translate-y-[5px] transition-all flex items-center justify-center gap-3 text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed mb-3"
           >
             {isLogging ? "LOGGING IN..." : "LOGIN WITH GOOGLE"}
+          </button>
+
+          <button
+            onClick={handleAnonymousLogin}
+            disabled={isLogging}
+            className="w-full bg-yellow-300 hover:bg-yellow-200 text-black font-bold border-4 border-black py-3 px-6 shadow-neo active:shadow-none active:translate-x-[5px] active:translate-y-[5px] transition-all flex items-center justify-center gap-2 text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Zap size={18} className="fill-black" />
+            {isLogging ? "CONNECTING..." : "CONTINUE AS GUEST (1-TAP)"}
           </button>
 
           {/* AI Coming Soon Badge */}
           <div className="mt-6 bg-purple-200 border-2 border-black p-3 text-center">
             <p className="font-mono text-xs font-bold text-purple-800">
-              🤖 AI ASSISTANT COMING SOON
+              🤖 AI ASSISTANT READY
             </p>
           </div>
 
@@ -640,7 +726,7 @@ function App() {
         <div className="bg-white border-4 border-black shadow-neo w-full max-w-[calc(100vw-2rem)] sm:max-w-md p-6 md:p-8">
           <div className="flex justify-between items-center mb-6 md:mb-8">
             <h2 className="text-xl md:text-2xl font-black uppercase">Select Zone</h2>
-            <button onClick={() => auth.signOut()} className="border-2 border-black p-2 hover:bg-red-500 hover:text-white transition-colors shadow-neo-sm active:shadow-none active:translate-x-[3px] active:translate-y-[3px]">
+            <button onClick={handleLogout} title="Logout" className="border-2 border-black p-2 hover:bg-red-500 hover:text-white transition-colors shadow-neo-sm active:shadow-none active:translate-x-[3px] active:translate-y-[3px]">
               <LogOut size={18} />
             </button>
           </div>
