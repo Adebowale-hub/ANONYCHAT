@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
-import { signInWithPopup } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider, signInAnonymously } from './firebase';
 import { Send, LogOut, MessageSquare, Zap, Reply, X, AtSign } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
@@ -139,6 +140,8 @@ function App() {
   const [isLogging, setIsLogging] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isServerConnected, setIsServerConnected] = useState(false);
+  const joinTimeoutRef = useRef(null);
 
   // User count
   const [onlineCount, setOnlineCount] = useState(0);
@@ -246,6 +249,7 @@ function App() {
   }, [socket, isInRoom, room]);
 
   useEffect(() => {
+
     return auth.onAuthStateChanged(async (currentUser) => {
       if (currentUser) {
         try {
@@ -282,6 +286,7 @@ function App() {
     // Auto-rejoin on connect/reconnect, or auto-join stored room on initial page load
     newSocket.on("connect", () => {
       console.log("Socket connected:", newSocket.id);
+      setIsServerConnected(true);
 
       const savedRoom = localStorage.getItem('active_room');
       const savedPassword = localStorage.getItem('active_room_password');
@@ -305,8 +310,28 @@ function App() {
       }
     });
 
+    newSocket.on("disconnect", (reason) => {
+      console.warn("Socket disconnected:", reason);
+      setIsServerConnected(false);
+      setIsJoining(false);
+    });
+
+    newSocket.on("connect_error", (err) => {
+      console.error("Socket connection error:", err.message);
+      setIsServerConnected(false);
+      setIsJoining(false);
+      if (joinTimeoutRef.current) {
+        clearTimeout(joinTimeoutRef.current);
+        joinTimeoutRef.current = null;
+      }
+    });
+
     // Listen for username from backend (sent when joining a room)
     newSocket.on("username_assigned", (assignedUsername) => {
+      if (joinTimeoutRef.current) {
+        clearTimeout(joinTimeoutRef.current);
+        joinTimeoutRef.current = null;
+      }
       setUsername(assignedUsername);
       localStorage.setItem('active_room_username', assignedUsername);
       setIsInRoom(true); // Successfully joined room
@@ -352,6 +377,10 @@ function App() {
 
     // Listen for join errors (e.g., wrong password)
     newSocket.on("join_error", ({ error }) => {
+      if (joinTimeoutRef.current) {
+        clearTimeout(joinTimeoutRef.current);
+        joinTimeoutRef.current = null;
+      }
       alert(error);
       setIsJoining(false);
       // Clear storage to avoid infinite reconnect loop
@@ -365,6 +394,10 @@ function App() {
 
     // Listen for password requirement
     newSocket.on("password_required", ({ roomId }) => {
+      if (joinTimeoutRef.current) {
+        clearTimeout(joinTimeoutRef.current);
+        joinTimeoutRef.current = null;
+      }
       setShowPasswordInput(true);
       setIsJoining(false);
       alert(`Room "${roomId}" is password protected. Please enter the password.`);
@@ -404,13 +437,45 @@ function App() {
   const handleLogin = async () => {
     setIsLogging(true);
     try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error(error);
-      if (error.code === 'auth/disallowed-useragent' || error.code === 'auth/popup-blocked') {
-        alert("Google popup sign-in is restricted in this mobile view. Please use 'CONTINUE AS GUEST' for instant 1-tap entry!");
+      if (Capacitor.isNativePlatform()) {
+        // Native Google Sign-In via @capacitor-firebase/authentication
+        // skipNativeAuth: true bypasses native Android Firebase and returns the idToken for Firebase Web SDK
+        const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+        const result = await FirebaseAuthentication.signInWithGoogle({
+          skipNativeAuth: true
+        });
+
+        console.log("Native Google Sign-In result:", result);
+        const idToken = result?.credential?.idToken || result?.idToken;
+
+        if (idToken) {
+          const credential = GoogleAuthProvider.credential(idToken);
+          const userCredential = await signInWithCredential(auth, credential);
+          if (userCredential?.user) {
+            const u = userCredential.user;
+            const sessionUser = {
+              uid: u.uid,
+              email: u.email || `${u.uid}@anonychat.user`,
+              displayName: u.displayName || "Anonymous",
+              isAnonymous: false
+            };
+            localStorage.setItem('anonychat_user_session', JSON.stringify(sessionUser));
+            setUser(u);
+          }
+        } else {
+          throw new Error("No Google ID token was received from account chooser.");
+        }
       } else {
-        alert("Sign in note: " + (error.message || "Failed to sign in."));
+        // On web, use standard popup flow
+        await signInWithPopup(auth, googleProvider);
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      const msg = error?.message || String(error);
+      if (error.code === 'auth/disallowed-useragent' || error.code === 'auth/popup-blocked') {
+        alert("Google sign-in is restricted in this view. Please use 'CONTINUE AS GUEST' for instant entry!");
+      } else if (!msg.toLowerCase().includes('cancel') && !msg.toLowerCase().includes('16:')) {
+        alert("Sign in error: " + msg);
       }
     } finally {
       setIsLogging(false);
@@ -436,6 +501,14 @@ function App() {
       localStorage.removeItem('active_room_password');
       localStorage.removeItem('active_room_username');
       if (socket) socket.disconnect();
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+          await FirebaseAuthentication.signOut();
+        } catch (e) {
+          console.warn("Native sign out ignored:", e);
+        }
+      }
       await auth.signOut();
       setUser(null);
       setIsInRoom(false);
@@ -457,35 +530,56 @@ function App() {
 
   const confirmJoinRoom = () => {
     const sanitized = sanitizeRoomName(room);
-    if (sanitized && socket) {
-      setIsJoining(true);
-      setRoom(sanitized); // Update with sanitized version
-
-      // Clear the previous stored username only if we are manually joining a different room/zone
-      const savedRoom = localStorage.getItem('active_room');
-      let savedUsername = undefined;
-      
-      if (savedRoom !== sanitized) {
-        localStorage.removeItem('active_room_username');
-        setUsername("");
-      } else {
-        savedUsername = localStorage.getItem('active_room_username') || username;
-      }
-
-      localStorage.setItem('active_room', sanitized);
-      if (roomPassword) {
-        localStorage.setItem('active_room_password', roomPassword);
-      } else {
-        localStorage.removeItem('active_room_password');
-      }
-
-      socket.emit("join_room", { 
-        roomId: sanitized, 
-        password: roomPassword || undefined,
-        username: savedUsername || undefined
-      });
-      setShowProtocolModal(false);
+    if (!sanitized) {
+      alert("Please enter a valid room name (letters, numbers, - and _ only)");
+      return;
     }
+
+    if (!socket || !socket.connected) {
+      alert(`Cannot join room: Not connected to chat server (${BACKEND_URL}).\n\nIf testing on an Android phone, localhost cannot connect to your PC without a network IP or deployed server URL. Please verify your backend.`);
+      setIsJoining(false);
+      return;
+    }
+
+    setIsJoining(true);
+    setRoom(sanitized); // Update with sanitized version
+
+    // Clear the previous stored username only if we are manually joining a different room/zone
+    const savedRoom = localStorage.getItem('active_room');
+    let savedUsername = undefined;
+    
+    if (savedRoom !== sanitized) {
+      localStorage.removeItem('active_room_username');
+      setUsername("");
+    } else {
+      savedUsername = localStorage.getItem('active_room_username') || username;
+    }
+
+    localStorage.setItem('active_room', sanitized);
+    if (roomPassword) {
+      localStorage.setItem('active_room_password', roomPassword);
+    } else {
+      localStorage.removeItem('active_room_password');
+    }
+
+    // Safety timeout: abort if server doesn't respond within 8 seconds
+    if (joinTimeoutRef.current) clearTimeout(joinTimeoutRef.current);
+    joinTimeoutRef.current = setTimeout(() => {
+      setIsJoining(joining => {
+        if (joining) {
+          alert(`Server timed out while joining "${sanitized}". Please check your backend server status.`);
+          return false;
+        }
+        return false;
+      });
+    }, 8000);
+
+    socket.emit("join_room", { 
+      roomId: sanitized, 
+      password: roomPassword || undefined,
+      username: savedUsername || undefined
+    });
+    setShowProtocolModal(false);
   };
 
   const leaveRoom = () => {
@@ -731,7 +825,15 @@ function App() {
             </button>
           </div>
 
-          <label className="block font-mono font-bold mb-2 text-sm">ENTER ROOM ID</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="font-mono font-bold text-sm">ENTER ROOM ID</label>
+            <div className="flex items-center gap-1.5" title={isServerConnected ? "Connected to chat backend" : "Disconnected from chat backend"}>
+              <span className={`w-2.5 h-2.5 rounded-full ${isServerConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
+              <span className="font-mono text-[11px] font-bold text-gray-500">
+                {isServerConnected ? "SERVER READY" : "SERVER OFFLINE"}
+              </span>
+            </div>
+          </div>
           <input
             type="text"
             placeholder="e.g. general"
