@@ -168,11 +168,13 @@ function App() {
   const isInRoomRef = useRef(isInRoom);
   const roomPasswordRef = useRef(roomPassword);
   const usernameRef = useRef(username);
+  const userRef = useRef(user);
 
   useEffect(() => { roomRef.current = room; }, [room]);
   useEffect(() => { isInRoomRef.current = isInRoom; }, [isInRoom]);
   useEffect(() => { roomPasswordRef.current = roomPassword; }, [roomPassword]);
   useEffect(() => { usernameRef.current = username; }, [username]);
+  useEffect(() => { userRef.current = user; }, [user]);
 
   // Search messages
   const [searchQuery, setSearchQuery] = useState("");
@@ -258,10 +260,11 @@ function App() {
             uid: currentUser.uid,
             email: currentUser.email || `${currentUser.uid}@anonychat.user`,
             displayName: currentUser.displayName || (currentUser.isAnonymous ? "Guest" : "Anonymous"),
-            isAnonymous: currentUser.isAnonymous || false
+            isAnonymous: currentUser.isAnonymous || false,
+            photoURL: currentUser.photoURL || null
           };
           localStorage.setItem('anonychat_user_session', JSON.stringify(sessionUser));
-          setUser(currentUser);
+          setUser(sessionUser);
           initSocket(token);
         } catch (err) {
           console.error("Token fetch error:", err);
@@ -277,6 +280,24 @@ function App() {
       setIsAuthInitializing(false);
     });
   }, []);
+
+  // Helper to determine if a message was sent by the current user
+  const isMessageFromMe = (msg) => {
+    if (!msg) return false;
+    const currentUser = userRef.current || user || auth.currentUser;
+    const currentUid = currentUser?.uid || auth.currentUser?.uid;
+    const currentEmail = currentUser?.email || auth.currentUser?.email || (currentUid ? `${currentUid}@anonychat.user` : null);
+
+    // 1. Check by UID (matches socket.user.uid attached by backend)
+    if (currentUid && (msg.senderId === currentUid || msg.senderEmail === `${currentUid}@anonychat.user`)) {
+      return true;
+    }
+    // 2. Check by Email (for Google/email authenticated users)
+    if (currentEmail && msg.senderEmail === currentEmail) {
+      return true;
+    }
+    return false;
+  };
 
   const initSocket = (token) => {
     // Disconnect any lingering socket before creating a new one
@@ -397,7 +418,7 @@ function App() {
       setMessages((prev) => [...prev, data]);
 
       // Play sound notification (only if not from current user)
-      if (data.senderEmail !== user?.email && !data.isSystem) {
+      if (!isMessageFromMe(data) && !data.isSystem) {
         playNotificationSound();
       }
     });
@@ -484,10 +505,11 @@ function App() {
               uid: u.uid,
               email: u.email || `${u.uid}@anonychat.user`,
               displayName: u.displayName || "Anonymous",
-              isAnonymous: false
+              isAnonymous: false,
+              photoURL: u.photoURL || null
             };
             localStorage.setItem('anonychat_user_session', JSON.stringify(sessionUser));
-            setUser(u);
+            setUser(sessionUser);
           }
         } else {
           throw new Error("No Google ID token was received from account chooser.");
@@ -1117,7 +1139,7 @@ function App() {
           }
 
           // 2. NORMAL MESSAGE LOGIC (with threading and mentions)
-          const isMe = msg.senderEmail === user.email;
+          const isMe = isMessageFromMe(msg);
           const isGemini = msg.isGemini || msg.senderUsername === "Gemini";
           const parentMsg = msg.replyTo ? findParentMessage(msg.replyTo) : null;
 
@@ -1166,7 +1188,7 @@ function App() {
                   {/* Sender info */}
                   {!isMe && (
                     <p className={`font-mono text-[10px] md:text-xs font-bold mb-1 truncate ${isGemini ? 'text-purple-700' : 'text-pink-600'}`}>
-                      @{msg.senderUsername || msg.senderEmail.split('@')[0]}
+                      @{msg.senderUsername || (msg.senderEmail ? msg.senderEmail.split('@')[0] : 'Anonymous')}
                       {isGemini && " 🤖"}
                     </p>
                   )}
