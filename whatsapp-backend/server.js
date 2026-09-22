@@ -306,7 +306,7 @@ io.on("connection", (socket) => {
     const messageData = {
       text: text,
       senderId: socket.user.uid,
-      senderEmail: socket.user.email,
+      senderEmail: socket.user.email || `${socket.user.uid}@anonychat.user`,
       senderUsername: username, // Use room-specific username
       roomId: roomId,
       createdAt: new Date().toISOString(),
