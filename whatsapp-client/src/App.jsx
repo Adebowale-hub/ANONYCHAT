@@ -279,8 +279,35 @@ function App() {
   }, []);
 
   const initSocket = (token) => {
+    // Disconnect any lingering socket before creating a new one
+    setSocket(prev => {
+      if (prev) {
+        prev.disconnect();
+      }
+      return null;
+    });
+
     const newSocket = io(BACKEND_URL, {
-      auth: { token: token }
+      auth: { token: token },
+      // Force WebSocket transport — HTTP long-polling fails in Capacitor/Android WebViews
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+      timeout: 15000,
+    });
+
+    // Refresh Firebase token before each reconnect attempt so it never goes stale
+    newSocket.io.on('reconnect_attempt', async () => {
+      try {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          const freshToken = await currentUser.getIdToken(true);
+          newSocket.auth = { token: freshToken };
+        }
+      } catch (e) {
+        console.warn('Token refresh on reconnect failed:', e.message);
+      }
     });
 
     // Auto-rejoin on connect/reconnect, or auto-join stored room on initial page load

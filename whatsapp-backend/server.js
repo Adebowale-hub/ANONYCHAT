@@ -29,6 +29,15 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Health check and root route
+app.get("/", (req, res) => {
+  res.send("AnonyChat Backend is running!");
+});
+
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", service: "AnonyChat Backend", timestamp: new Date().toISOString() });
+});
+
 const server = http.createServer(app);
 
 // 1. Setup Socket.io with CORS
